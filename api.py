@@ -18,13 +18,31 @@ class AnalyzeRequest(BaseModel):
     ticker: str
     date: str
     depth: int = 1
+    provider: str = "anthropic"
+
+PROVIDER_MODELS = {
+    "anthropic": {
+        "deep": "claude-opus-4-20250514",
+        "quick": "claude-sonnet-4-20250514",
+    },
+    "openai": {
+        "deep": "gpt-4o",
+        "quick": "gpt-4o-mini",
+    },
+    "google": {
+        "deep": "gemini-1.5-pro",
+        "quick": "gemini-1.5-flash",
+    },
+}
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
+    models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
+
     config = DEFAULT_CONFIG.copy()
-    config["llm_provider"] = "anthropic"
-    config["deep_think_llm"] = "claude-opus-4-20250514"
-    config["quick_think_llm"] = "claude-sonnet-4-20250514"
+    config["llm_provider"] = req.provider
+    config["deep_think_llm"] = models["deep"]
+    config["quick_think_llm"] = models["quick"]
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
@@ -42,4 +60,4 @@ def analyze(req: AnalyzeRequest):
         "risk": str(state.get("final_trade_decision", "") or ""),
     }
 
-    return { "decision": str(decision), "reports": reports }
+    return {"decision": str(decision), "reports": reports}
