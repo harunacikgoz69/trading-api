@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+import os
 
 app = FastAPI()
 
@@ -28,6 +29,17 @@ def analyze(req: AnalyzeRequest):
     config["online_tools"] = True
 
     ta = TradingAgentsGraph(debug=False, config=config)
-    _, decision = ta.propagate(req.ticker, req.date)
+    state, decision = ta.propagate(req.ticker, req.date)
 
-    return { "decision": str(decision), "reports": {} }
+    reports = {
+        "fundamentals": str(state.get("market_report", "") or ""),
+        "sentiment": str(state.get("sentiment_report", "") or ""),
+        "news": str(state.get("news_report", "") or ""),
+        "technical": str(state.get("technical_report", "") or ""),
+        "bull": str(state.get("investment_debate_state", {}).get("bull_history", "") or ""),
+        "bear": str(state.get("investment_debate_state", {}).get("bear_history", "") or ""),
+        "trader": str(state.get("trader_investment_plan", "") or ""),
+        "risk": str(state.get("final_trade_decision", "") or ""),
+    }
+
+    return { "decision": str(decision), "reports": reports }
