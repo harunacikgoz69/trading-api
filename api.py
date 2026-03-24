@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+import anthropic
 import os
 
 app = FastAPI()
@@ -27,6 +28,23 @@ PROVIDER_MODELS = {
     "google":    { "deep": "gemini-1.5-pro", "quick": "gemini-1.5-flash" },
 }
 
+def translate_to_turkish(text: str) -> str:
+    if not text or len(text.strip()) < 10:
+        return text
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": f"Aşağıdaki finansal analiz raporunu Türkçeye çevir. Sadece çeviriyi ver, başka hiçbir şey ekleme:\n\n{text[:3000]}"
+            }]
+        )
+        return message.content[0].text
+    except:
+        return text
+
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
     models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
@@ -36,12 +54,6 @@ def analyze(req: AnalyzeRequest):
     config["quick_think_llm"] = models["quick"]
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
-
-    import os
-    if req.lang == "tr":
-        os.environ["TRADINGAGENTS_LANGUAGE"] = "tr"
-    else:
-        os.environ["TRADINGAGENTS_LANGUAGE"] = "en"
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(req.ticker, req.date)
@@ -65,4 +77,11 @@ def analyze(req: AnalyzeRequest):
         "risk":         get("final_trade_decision"),
     }
 
-    return {"decision": str(decision), "reports": reports}
+    final_decision = str(decision)
+
+    if req.lang == "tr":
+        for key in reports:
+            reports[key] = translate_to_turkish(reports[key])
+        final_decision = translate_to_turkish(final_decision)
+
+    return {"decision": final_decision, "reports": reports}
