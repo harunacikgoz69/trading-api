@@ -37,10 +37,11 @@ def analyze(req: AnalyzeRequest):
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
+    import os
     if req.lang == "tr":
-        config["language"] = "Turkish"
+        os.environ["TRADINGAGENTS_LANGUAGE"] = "tr"
     else:
-        config["language"] = "English"
+        os.environ["TRADINGAGENTS_LANGUAGE"] = "en"
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(req.ticker, req.date)
