@@ -38,9 +38,9 @@ def analyze(req: AnalyzeRequest):
     config["online_tools"] = True
 
     if req.lang == "tr":
-        config["system_prompt_suffix"] = "Tüm analizlerini ve raporlarını Türkçe yaz. Kararlarını ve açıklamalarını Türkçe olarak sun."
+        config["language"] = "Turkish"
     else:
-        config["system_prompt_suffix"] = ""
+        config["language"] = "English"
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(req.ticker, req.date)
