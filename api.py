@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+import os
 
 app = FastAPI()
 
@@ -18,6 +19,7 @@ class AnalyzeRequest(BaseModel):
     date: str
     depth: int = 1
     provider: str = "anthropic"
+    lang: str = "en"
 
 PROVIDER_MODELS = {
     "anthropic": { "deep": "claude-opus-4-20250514", "quick": "claude-sonnet-4-20250514" },
@@ -35,6 +37,11 @@ def analyze(req: AnalyzeRequest):
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
+    if req.lang == "tr":
+        config["system_prompt_suffix"] = "Tüm analizlerini ve raporlarını Türkçe yaz. Kararlarını ve açıklamalarını Türkçe olarak sun."
+    else:
+        config["system_prompt_suffix"] = ""
+
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(req.ticker, req.date)
 
@@ -42,8 +49,6 @@ def analyze(req: AnalyzeRequest):
         val = state.get(key)
         if not val:
             return ""
-        if isinstance(val, dict):
-            return str(val)
         return str(val)
 
     debate = state.get("investment_debate_state") or {}
@@ -59,4 +64,4 @@ def analyze(req: AnalyzeRequest):
         "risk":         get("final_trade_decision"),
     }
 
-    return {"decision": str(decision), "reports": reports, "state_keys": list(state.keys())}
+    return {"decision": str(decision), "reports": reports}
