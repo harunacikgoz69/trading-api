@@ -47,7 +47,14 @@ def translate_to_turkish(text: str) -> str:
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
-    models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
+    # BIST hisseleri için .IS ekle
+    ticker = req.ticker
+    bist_stocks = ["THYAO","GARAN","ASELS","SISE","EREGL","BIMAS","AKBNK","YKBNK","TUPRS","KCHOL","PGSUS","TCELL","FROTO","TOASO","SAHOL","HALKB","VAKBN","ISCTR","PETKM","KOZAL"]
+    if ticker in bist_stocks and not ticker.endswith(".IS"):
+        ticker = ticker + ".IS"
+    req.ticker = ticker
+    models = PROVIDER_MODELS.get(req.provider,
+ PROVIDER_MODELS["anthropic"])
     config = DEFAULT_CONFIG.copy()
     config["llm_provider"] = req.provider
     config["deep_think_llm"] = models["deep"]
