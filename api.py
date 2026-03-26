@@ -5,7 +5,6 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 import anthropic
 import os
-import yfinance as yf
 
 app = FastAPI()
 
@@ -24,10 +23,11 @@ class AnalyzeRequest(BaseModel):
     lang: str = "en"
 
 PROVIDER_MODELS = {
-    "anthropic": { "deep": "claude-opus-4-20250514",  "quick": "claude-sonnet-4-20250514" },
-    "openai":    { "deep": "gpt-4o",                  "quick": "gpt-4o-mini" },
-    "google":    { "deep": "gemini-2.0-flash", "quick": "gemini-2.0-flash" },
-    "groq":      { "deep": "llama-3.3-70b-versatile", "quick": "llama-3.3-70b-versatile" },
+    "anthropic": {"deep": "claude-opus-4-20250514", "quick": "claude-sonnet-4-20250514"},
+    "openai": {"deep": "gpt-4o", "quick": "gpt-4o-mini"},
+    "google": {"deep": "gemini-2.0-flash", "quick": "gemini-2.0-flash"},
+    "groq": {"deep": "llama-3.3-70b-versatile", "quick": "llama-3.3-70b-versatile"},
+}
 
 BIST_TICKERS = [
     "ACSEL","ADEL","ADESE","ADGYO","AEFES","AFYON","AGESA","AGROT","AGYO","AHGAZ",
@@ -104,31 +104,24 @@ def translate_to_turkish(text: str) -> str:
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
     ticker = req.ticker
-
-    # BIST hisseleri icin .IS ekle
     if ticker in BIST_TICKERS and not ticker.endswith(".IS"):
         ticker = ticker + ".IS"
 
     models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
     config = DEFAULT_CONFIG.copy()
-    config["llm_provider"] = req.provider
     config["deep_think_llm"] = models["deep"]
     config["quick_think_llm"] = models["quick"]
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
-    # Provider ayarlari
     if req.provider == "groq":
         config["llm_provider"] = "openai"
         config["backend_url"] = "https://api.groq.com/openai/v1"
-        config["openai_api_key"] = os.environ.get("GROQ_API_KEY", "")
-    elif req.provider == "openai":
-        config["backend_url"] = "https://api.openai.com/v1"
-        config["openai_api_key"] = os.environ.get("OPENAI_API_KEY", "")
-    elif req.provider == "google":
-        config["backend_url"] = "https://generativelanguage.googleapis.com/v1beta"
-    elif req.provider == "anthropic":
-        config["backend_url"] = "https://api.anthropic.com"
+        os.environ["OPENAI_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
+    else:
+        config["llm_provider"] = req.provider
+        if req.provider == "openai":
+            os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
@@ -143,13 +136,13 @@ def analyze(req: AnalyzeRequest):
 
     reports = {
         "fundamentals": get("market_report"),
-        "sentiment":    get("sentiment_report"),
-        "news":         get("news_report"),
-        "technical":    get("technical_report"),
-        "bull":         str(debate.get("bull_history", "") or ""),
-        "bear":         str(debate.get("bear_history", "") or ""),
-        "trader":       get("trader_investment_plan"),
-        "risk":         get("final_trade_decision"),
+        "sentiment": get("sentiment_report"),
+        "news": get("news_report"),
+        "technical": get("technical_report"),
+        "bull": str(debate.get("bull_history", "") or ""),
+        "bear": str(debate.get("bear_history", "") or ""),
+        "trader": get("trader_investment_plan"),
+        "risk": get("final_trade_decision"),
     }
 
     final_decision = str(decision)
