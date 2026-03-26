@@ -118,10 +118,11 @@ def analyze(req: AnalyzeRequest):
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
-    # Groq icin backend URL ayarla
+    # Groq icin OpenAI uyumlu mod
     if req.provider == "groq":
+        config["llm_provider"] = "openai"
         config["backend_url"] = "https://api.groq.com/openai/v1"
-        os.environ["GROQ_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
+        os.environ["OPENAI_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
