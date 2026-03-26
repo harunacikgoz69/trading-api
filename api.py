@@ -117,11 +117,14 @@ def analyze(req: AnalyzeRequest):
     if req.provider == "groq":
         config["llm_provider"] = "openai"
         config["backend_url"] = "https://api.groq.com/openai/v1"
+        config["openai_api_key"] = os.environ.get("GROQ_API_KEY", "")
         os.environ["OPENAI_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
+    elif req.provider == "openai":
+        config["llm_provider"] = "openai"
+        config["openai_api_key"] = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
+        os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
     else:
         config["llm_provider"] = req.provider
-        if req.provider == "openai":
-            os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
