@@ -24,9 +24,10 @@ class AnalyzeRequest(BaseModel):
     lang: str = "en"
 
 PROVIDER_MODELS = {
-    "anthropic": { "deep": "claude-opus-4-20250514", "quick": "claude-sonnet-4-20250514" },
-    "openai":    { "deep": "gpt-4o", "quick": "gpt-4o-mini" },
-    "google":    { "deep": "gemini-1.5-pro", "quick": "gemini-1.5-flash" },
+    "anthropic": { "deep": "claude-opus-4-20250514",  "quick": "claude-sonnet-4-20250514" },
+    "openai":    { "deep": "gpt-4o",                  "quick": "gpt-4o-mini" },
+    "google":    { "deep": "gemini-1.5-pro",           "quick": "gemini-1.5-flash" },
+    "groq":      { "deep": "llama-3.3-70b-versatile", "quick": "llama-3.1-8b-instant" },
 }
 
 BIST_TICKERS = [
@@ -116,6 +117,11 @@ def analyze(req: AnalyzeRequest):
     config["quick_think_llm"] = models["quick"]
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
+
+    # Groq icin backend URL ayarla
+    if req.provider == "groq":
+        config["backend_url"] = "https://api.groq.com/openai/v1"
+        os.environ["GROQ_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
