@@ -5,6 +5,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 import anthropic
 import os
+import yfinance as yf
 
 app = FastAPI()
 
@@ -28,6 +29,61 @@ PROVIDER_MODELS = {
     "google":    { "deep": "gemini-1.5-pro", "quick": "gemini-1.5-flash" },
 }
 
+BIST_TICKERS = [
+    "ACSEL","ADEL","ADESE","ADGYO","AEFES","AFYON","AGESA","AGROT","AGYO","AHGAZ",
+    "AKBNK","AKCNS","AKFEN","AKFGY","AKFYE","AKIM","AKISA","AKKGZ","AKKOM","AKPAZ",
+    "AKSGY","AKSUE","AKTIF","ALARK","ALBRK","ALCAR","ALCTL","ALFAS","ALGYO","ALKA",
+    "ALKIM","ALKLC","ALMAD","ALPMA","ALTIN","ALTNY","ALVES","ANELE","ANGEN","ANHYT",
+    "ANSGR","ARASE","ARCLK","ARDYZ","ARENA","ARSAN","ARTMS","ARZUM","ASELS","ASGYO",
+    "ASTOR","ASUZU","ATAGY","ATAKP","ATATP","ATEKS","ATLAS","ATPET","AVGYO","AVHOL",
+    "AVOD","AVPGY","AVTUR","AYCES","AYEN","AYGAZ","AZTEK","BAGFS","BAKCL","BAKAB",
+    "BALAT","BANVT","BARMA","BASCM","BASGZ","BAYRK","BEGYO","BERA","BEYAZ","BFREN",
+    "BIMAS","BIOEN","BIONC","BIOSS","BIRTO","BITHM","BIZIM","BJKAS","BKFIN","BLCYT",
+    "BNTAS","BOBET","BORLS","BORSK","BOSSA","BRISA","BRKSN","BRKVY","BRMEN","BRSAN",
+    "BRYAT","BSOKE","BTCIM","BUCIM","BURCE","BURVA","BVSAN","CCOLA","CELHA","CEMAS",
+    "CEMTS","CENGZ","CEOEM","CIMSA","CLEBI","CMBTN","CMENT","CONSE","COSMO","CRDFA",
+    "CRFSA","CUSAN","CWENE","DAGI","DAPGM","DARDL","DESA","DESPC","DEVA","DGATE",
+    "DGNMO","DINHO","DITAS","DMSAS","DNISI","DOAS","DOBUR","DOCO","DOGUB","DOHOL",
+    "DOWAL","DRDGE","DURDO","DURKN","DYOBY","DZGYO","ECILC","ECZYT","EDATA","EDIP",
+    "EGEEN","EGGUB","EGPRO","EGSER","EKGYO","EKSUN","ELITE","EMKEL","EMNIS","ENERY",
+    "ENJSA","ENKAI","ENSRI","ENTRA","EPLAS","ERBOS","ERCB","EREGL","ERGLI","ESCAR",
+    "ESCOM","ESEN","ETILR","ETYAT","EUHOL","EUPWR","EUREN","EUYO","EXXEN","FADE",
+    "FENER","FMIZP","FONET","FORMT","FORTE","FRIGO","FROTO","FZLGY","GARAN","GARFA",
+    "GEDIK","GEDZA","GENIL","GENTS","GEREL","GESAN","GIPTA","GLBMD","GLCVY","GLRYH",
+    "GLYHO","GMTAS","GOLTS","GOODY","GOZDE","GRNYO","GRSEL","GRTRK","GSDDE",
+    "GSDHO","GSRAY","GUBRF","GWIND","GZNMI","HALKB","HATEK","HDFGS","HEDEF","HEKTS",
+    "HLGYO","HOROZ","HTTBT","HUBVC","HUNER","HURGZ","ICBCT","IDGYO","IEYHO","IHAAS",
+    "IHEVA","IHGZT","IHLAS","IHLGM","IHYAY","IMASM","INDES","INFO","INTEM","INVEO",
+    "IPEKE","ISATR","ISBIR","ISCTR","ISFIN","ISGSY","ISGYO","ISKPL","ISKUR","ISYAT",
+    "ITTFK","IZFAS","IZMDC","IZTAR","JANTS","KAREL","KARSN","KARTN","KATMR","KAYSE",
+    "KBORU","KCAER","KCHOL","KENT","KENVT","KERVT","KFEIN","KGYO","KILCO","KILICT",
+    "KLGYO","KLKIM","KLNMA","KLRHO","KLSER","KMPUR","KNFRT","KOCMT","KONKA","KONTR",
+    "KONYA","KOPOL","KORDS","KOSEN","KOTON","KOZAA","KOZAL","KRDMA","KRDMB","KRDMD",
+    "KRGYO","KRONT","KRPLS","KRSTL","KRTEK","KRVGD","KSTUR","KTLEV","KTSKR","KUTPO",
+    "KUVVA","KUYAS","KZBGY","KZGYO","LIDER","LIDFA","LINK","LKMNH","LOGO","LRSHO",
+    "LUKSK","MAALT","MACKO","MAGEN","MAKIM","MAKTK","MANAS","MARBL","MARKA","MARTI",
+    "MAVI","MEDTR","MEGAP","MEGMT","MEKAG","MEPET","MERCN","MERIT","MERKO","METRO",
+    "METUR","MGROS","MIATK","MIPAZ","MMCAS","MNDRS","MNVAT","MOBTL","MOGAN","MPARK",
+    "MRGYO","MRSHL","MSGYO","MTRKS","MZHLD","NATEN","NETAS","NIBAS","NILYT","NKAS",
+    "NTHOL","NTGAZ","NUGYO","NUHCM","NUTKG","OBAMS","OBASE","ODAS","ODINE","OFISE",
+    "ONCSM","ORCAY","ORGE","ORMA","OSMEN","OSTIM","OTKAR","OTTO","OYAKC","OYAYO",
+    "OYLUM","OZGYO","OZKGY","OZRDN","OZSUB","PAGYO","PAMEL","PAPIL","PARSN","PASEU",
+    "PCILT","PEGYO","PEKGY","PENGD","PENTA","PETKM","PETUN","PGSUS","PINSU","PKART",
+    "PKENT","PLTUR","PNLSN","POLHO","POLTK","POLY","PRDGS","PRZMA","PSDTC","PSGYO",
+    "QNBFB","QNBFL","QUAGR","RAYSG","REEDR","RGYAS","RHGYO","RNPOL","RODRG",
+    "RTALB","RUBNS","RYSAS","SAFKR","SAHOL","SAMAT","SANEL","SANFM","SANKO","SARKY",
+    "SASA","SAYAS","SDTTR","SEGMN","SEKFK","SEKUR","SELEC","SELGD","SELVA","SEYKM",
+    "SILVR","SISE","SKBNK","SMART","SMRTG","SNGYO","SNKRN","SOKM","SODSN",
+    "SOKE","SONME","SRVGY","SUMAS","SUWEN","TABGD","TACTR","TATGD","TAVHL","TBORG",
+    "TCELL","TCKRC","TDGYO","TEKTU","TEZOL","TGSAS","THYAO","TKFEN","TKNSA",
+    "TLMAN","TMSN","TMPOL","TNZTP","TOASO","TOFAS","TPVAM","TRGYO","TRILC","TSGYO",
+    "TTKOM","TTRAK","TUCLK","TUKAS","TUPRS","TUREX","TURGG","TURSG","TVRST","TYHOL",
+    "ULKER","ULUFA","ULUSE","ULUUN","UMPAS","UNLU","USAK","UZERB","VAKBN","VAKFN",
+    "VAKKO","VANGD","VBTYZ","VERUS","VESBE","VESTL","VKFYO","VKGYO","VKING","VRGYO",
+    "YAPRK","YATAS","YAYLA","YBTAS","YEOTK","YGGYO","YGYO","YKSLN","YKSPR","YUNSA",
+    "ZEDUR","ZOREN","ZRGYO"
+]
+
 def translate_to_turkish(text: str) -> str:
     if not text or len(text.strip()) < 10:
         return text
@@ -38,7 +94,7 @@ def translate_to_turkish(text: str) -> str:
             max_tokens=4096,
             messages=[{
                 "role": "user",
-                "content": f"Aşağıdaki finansal analiz raporunu Türkçeye çevir. Sadece çeviriyi ver, başka hiçbir şey ekleme:\n\n{text[:3000]}"
+                "content": f"Asagidaki finansal analiz raporunu Turkcey cevir. Sadece ceviriyi ver, baska hicbir sey ekleme:\n\n{text[:3000]}"
             }]
         )
         return message.content[0].text
@@ -47,14 +103,13 @@ def translate_to_turkish(text: str) -> str:
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
-    # BIST hisseleri için .IS ekle
     ticker = req.ticker
-    bist_stocks = ["THYAO","GARAN","ASELS","SISE","EREGL","BIMAS","AKBNK","YKBNK","TUPRS","KCHOL","PGSUS","TCELL","FROTO","TOASO","SAHOL","HALKB","VAKBN","ISCTR","PETKM","KOZAL"]
-    if ticker in bist_stocks and not ticker.endswith(".IS"):
+
+    # BIST hisseleri icin .IS ekle
+    if ticker in BIST_TICKERS and not ticker.endswith(".IS"):
         ticker = ticker + ".IS"
-    req.ticker = ticker
-    models = PROVIDER_MODELS.get(req.provider,
- PROVIDER_MODELS["anthropic"])
+
+    models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
     config = DEFAULT_CONFIG.copy()
     config["llm_provider"] = req.provider
     config["deep_think_llm"] = models["deep"]
@@ -63,7 +118,7 @@ def analyze(req: AnalyzeRequest):
     config["online_tools"] = True
 
     ta = TradingAgentsGraph(debug=False, config=config)
-    state, decision = ta.propagate(req.ticker, req.date)
+    state, decision = ta.propagate(ticker, req.date)
 
     def get(key):
         val = state.get(key)
@@ -92,3 +147,8 @@ def analyze(req: AnalyzeRequest):
         final_decision = translate_to_turkish(final_decision)
 
     return {"decision": final_decision, "reports": reports}
+
+@app.get("/bist-stocks")
+def get_bist_stocks():
+    stocks = [{"symbol": t, "name": t} for t in BIST_TICKERS]
+    return {"stocks": stocks}
