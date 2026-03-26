@@ -118,11 +118,18 @@ def analyze(req: AnalyzeRequest):
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
-    # Groq icin OpenAI uyumlu mod
+    # Provider ayarlari
     if req.provider == "groq":
         config["llm_provider"] = "openai"
         config["backend_url"] = "https://api.groq.com/openai/v1"
-        os.environ["OPENAI_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
+        config["openai_api_key"] = os.environ.get("GROQ_API_KEY", "")
+    elif req.provider == "openai":
+        config["backend_url"] = "https://api.openai.com/v1"
+        config["openai_api_key"] = os.environ.get("OPENAI_API_KEY", "")
+    elif req.provider == "google":
+        config["backend_url"] = "https://generativelanguage.googleapis.com/v1beta"
+    elif req.provider == "anthropic":
+        config["backend_url"] = "https://api.anthropic.com"
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
