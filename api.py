@@ -26,9 +26,8 @@ class AnalyzeRequest(BaseModel):
 PROVIDER_MODELS = {
     "anthropic": { "deep": "claude-opus-4-20250514",  "quick": "claude-sonnet-4-20250514" },
     "openai":    { "deep": "gpt-4o",                  "quick": "gpt-4o-mini" },
-    "google":    { "deep": "gemini-1.5-pro",           "quick": "gemini-1.5-flash" },
-    "groq":      { "deep": "llama-3.3-70b-versatile", "quick": "llama-3.1-8b-instant" },
-}
+    "google":    { "deep": "gemini-2.0-flash", "quick": "gemini-2.0-flash" },
+    "groq":      { "deep": "llama-3.3-70b-versatile", "quick": "llama-3.3-70b-versatile" },
 
 BIST_TICKERS = [
     "ACSEL","ADEL","ADESE","ADGYO","AEFES","AFYON","AGESA","AGROT","AGYO","AHGAZ",
