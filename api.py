@@ -180,3 +180,36 @@ def get_price(symbol: str):
         }
     except Exception as e:
         return {"symbol": symbol, "price": None, "error": str(e)}
+
+class CompareRequest(BaseModel):
+    symbol: str
+    current_decision: str
+    current_report: str
+    previous_decision: str
+    previous_report: str
+
+@app.post("/compare")
+def compare_analyses(req: CompareRequest):
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            messages=[{
+                "role": "user",
+                "content": f"""Asagida {req.symbol} hissesi icin iki farkli tarihte yapilan analiz var.
+                
+Onceki Analiz Karari: {req.previous_decision[:200]}
+Onceki Rapor Ozeti: {req.previous_report[:500]}
+
+Yeni Analiz Karari: {req.current_decision[:200]}
+Yeni Rapor Ozeti: {req.current_report[:500]}
+
+Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak ozet. 
+Karar degistiyse bunu vurgula. Kisa ve net ol."""
+            }]
+        )
+        return {"note": message.content[0].text}
+    except Exception as e:
+        return {"note": "", "error": str(e)}
+
