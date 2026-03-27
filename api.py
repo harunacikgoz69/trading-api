@@ -21,6 +21,8 @@ class AnalyzeRequest(BaseModel):
     depth: int = 1
     provider: str = "anthropic"
     lang: str = "en"
+    market: str = "US"
+    sources: dict = None
 
 PROVIDER_MODELS = {
     "anthropic": {"deep": "claude-opus-4-20250514", "quick": "claude-sonnet-4-20250514"},
@@ -118,6 +120,27 @@ def analyze(req: AnalyzeRequest):
         os.environ["OPENAI_API_KEY"] = real_key
     else:
         config["llm_provider"] = req.provider
+
+    # Kaynak yonlendirmesi ekle
+    if req.sources and req.market == "BIST":
+        source_note = f"""
+ONEMLI: Bu analizi asagidaki Turk kaynaklarina odaklanarak yap:
+- Temel Analiz icin: {', '.join(req.sources.get('fundamentals', []))}
+- Haber Analizi icin: {', '.join(req.sources.get('news', []))}
+- Duygu Analizi icin: {', '.join(req.sources.get('sentiment', []))}
+- Teknik Analiz icin: {', '.join(req.sources.get('technical', []))}
+Bu kaynaklar Turkiye borsasina ozgu kaynaklardir. Analizi bu cercevede yap.
+"""
+        os.environ["TRADINGAGENTS_CONTEXT"] = source_note
+    elif req.sources:
+        source_note = f"""
+IMPORTANT: Focus this analysis on the following data sources:
+- Fundamentals: {', '.join(req.sources.get('fundamentals', []))}
+- News: {', '.join(req.sources.get('news', []))}
+- Sentiment: {', '.join(req.sources.get('sentiment', []))}
+- Technical: {', '.join(req.sources.get('technical', []))}
+"""
+        os.environ["TRADINGAGENTS_CONTEXT"] = source_note
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
