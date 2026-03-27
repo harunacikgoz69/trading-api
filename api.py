@@ -161,3 +161,22 @@ def analyze(req: AnalyzeRequest):
 def get_bist_stocks():
     stocks = [{"symbol": t, "name": t} for t in BIST_TICKERS]
     return {"stocks": stocks}
+
+@app.get("/price/{symbol}")
+def get_price(symbol: str):
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker(symbol)
+        info = ticker.fast_info
+        price = info.last_price
+        prev_close = info.previous_close
+        change = price - prev_close
+        change_pct = (change / prev_close) * 100
+        return {
+            "symbol": symbol,
+            "price": round(price, 2),
+            "change": round(change, 2),
+            "changePercent": round(change_pct, 2)
+        }
+    except Exception as e:
+        return {"symbol": symbol, "price": None, "error": str(e)}
