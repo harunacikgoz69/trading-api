@@ -24,9 +24,8 @@ class AnalyzeRequest(BaseModel):
 
 PROVIDER_MODELS = {
     "anthropic": {"deep": "claude-opus-4-20250514", "quick": "claude-sonnet-4-20250514"},
-    "openai": {"deep": "gpt-4o", "quick": "gpt-4o-mini"},
-    "google": {"deep": "gemini-2.0-flash", "quick": "gemini-2.0-flash"},
-    "groq": {"deep": "llama-3.3-70b-versatile", "quick": "llama-3.3-70b-versatile"},
+    "openai":    {"deep": "gpt-4o",                 "quick": "gpt-4o-mini"},
+    "google":    {"deep": "gemini-2.0-flash",        "quick": "gemini-2.0-flash"},
 }
 
 BIST_TICKERS = [
@@ -114,15 +113,10 @@ def analyze(req: AnalyzeRequest):
     config["max_debate_rounds"] = req.depth
     config["online_tools"] = True
 
-    if req.provider == "groq":
+    if req.provider == "openai":
         config["llm_provider"] = "openai"
-        config["backend_url"] = "https://api.groq.com/openai/v1"
-        config["openai_api_key"] = os.environ.get("GROQ_API_KEY", "")
-        os.environ["OPENAI_API_KEY"] = os.environ.get("GROQ_API_KEY", "")
-    elif req.provider == "openai":
-        config["llm_provider"] = "openai"
-        config["openai_api_key"] = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
-        os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
+        real_key = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
+        os.environ["OPENAI_API_KEY"] = real_key
     else:
         config["llm_provider"] = req.provider
 
@@ -139,13 +133,13 @@ def analyze(req: AnalyzeRequest):
 
     reports = {
         "fundamentals": get("market_report"),
-        "sentiment": get("sentiment_report"),
-        "news": get("news_report"),
-        "technical": get("technical_report"),
-        "bull": str(debate.get("bull_history", "") or ""),
-        "bear": str(debate.get("bear_history", "") or ""),
-        "trader": get("trader_investment_plan"),
-        "risk": get("final_trade_decision"),
+        "sentiment":    get("sentiment_report"),
+        "news":         get("news_report"),
+        "technical":    get("technical_report"),
+        "bull":         str(debate.get("bull_history", "") or ""),
+        "bear":         str(debate.get("bear_history", "") or ""),
+        "trader":       get("trader_investment_plan"),
+        "risk":         get("final_trade_decision"),
     }
 
     final_decision = str(decision)
@@ -198,18 +192,17 @@ def compare_analyses(req: CompareRequest):
             messages=[{
                 "role": "user",
                 "content": f"""Asagida {req.symbol} hissesi icin iki farkli tarihte yapilan analiz var.
-                
+
 Onceki Analiz Karari: {req.previous_decision[:200]}
 Onceki Rapor Ozeti: {req.previous_report[:500]}
 
 Yeni Analiz Karari: {req.current_decision[:200]}
 Yeni Rapor Ozeti: {req.current_report[:500]}
 
-Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak ozet. 
+Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak ozet.
 Karar degistiyse bunu vurgula. Kisa ve net ol."""
             }]
         )
         return {"note": message.content[0].text}
     except Exception as e:
         return {"note": "", "error": str(e)}
-
