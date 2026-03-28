@@ -121,26 +121,26 @@ def analyze(req: AnalyzeRequest):
     else:
         config["llm_provider"] = req.provider
 
-    # Kaynak yonlendirmesi ekle
-    if req.sources and req.market == "BIST":
-        source_note = f"""
-ONEMLI: Bu analizi asagidaki Turk kaynaklarina odaklanarak yap:
-- Temel Analiz icin: {', '.join(req.sources.get('fundamentals', []))}
-- Haber Analizi icin: {', '.join(req.sources.get('news', []))}
-- Duygu Analizi icin: {', '.join(req.sources.get('sentiment', []))}
-- Teknik Analiz icin: {', '.join(req.sources.get('technical', []))}
-Bu kaynaklar Turkiye borsasina ozgu kaynaklardir. Analizi bu cercevede yap.
-"""
-        os.environ["TRADINGAGENTS_CONTEXT"] = source_note
-    elif req.sources:
-        source_note = f"""
-IMPORTANT: Focus this analysis on the following data sources:
-- Fundamentals: {', '.join(req.sources.get('fundamentals', []))}
-- News: {', '.join(req.sources.get('news', []))}
-- Sentiment: {', '.join(req.sources.get('sentiment', []))}
-- Technical: {', '.join(req.sources.get('technical', []))}
-"""
-        os.environ["TRADINGAGENTS_CONTEXT"] = source_note
+    # Kaynak yonlendirmesi environment variable ile set et
+    if req.sources:
+        if req.market == "BIST":
+            os.environ["ANALYST_SOURCE_NOTES"] = (
+                f"ONEMLI: Bu analiz Turkiye borsasi hissesi icin yapilmaktadir. "
+                f"Temel analiz icin {', '.join(req.sources.get('fundamentals', []))} kaynaklarini, "
+                f"haber analizi icin {', '.join(req.sources.get('news', []))} kaynaklarini, "
+                f"duygu analizi icin {', '.join(req.sources.get('sentiment', []))} kaynaklarini, "
+                f"teknik analiz icin {', '.join(req.sources.get('technical', []))} kaynaklarini dikkate al."
+            )
+        else:
+            os.environ["ANALYST_SOURCE_NOTES"] = (
+                f"IMPORTANT: Focus on these sources - "
+                f"Fundamentals: {', '.join(req.sources.get('fundamentals', []))}, "
+                f"News: {', '.join(req.sources.get('news', []))}, "
+                f"Sentiment: {', '.join(req.sources.get('sentiment', []))}, "
+                f"Technical: {', '.join(req.sources.get('technical', []))}."
+            )
+    else:
+        os.environ["ANALYST_SOURCE_NOTES"] = ""
 
     ta = TradingAgentsGraph(debug=False, config=config)
     state, decision = ta.propagate(ticker, req.date)
