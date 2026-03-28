@@ -228,3 +228,17 @@ Karar degistiyse bunu vurgula. Kisa ve net ol."""
         return {"note": message.content[0].text}
     except Exception as e:
         return {"note": "", "error": str(e)}
+@app.get("/test-kap/{ticker}")
+def test_kap(ticker: str):
+    try:
+        import requests
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json",
+        }
+        # KAP'tan son aciklamalar
+        url = f"https://www.kap.org.tr/tr/api/memberDisclosureQuery?memberCode={ticker}&year=2026"
+        res = requests.get(url, headers=headers, timeout=10)
+        return {"status": res.status_code, "data": res.json()}
+    except Exception as e:
+        return {"error": str(e)}
