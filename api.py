@@ -160,10 +160,10 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
         debate = state.get("investment_debate_state") or {}
 
         reports = {
-            "fundamentals": get("market_report"),
+            "fundamentals": get("fundamentals_report"),
             "sentiment":    get("sentiment_report"),
             "news":         get("news_report"),
-            "technical":    get("technical_report"),
+            "technical":    get("market_report"),
             "bull":         str(debate.get("bull_history", "") or ""),
             "bear":         str(debate.get("bear_history", "") or ""),
             "trader":       get("trader_investment_plan"),
