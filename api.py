@@ -270,7 +270,7 @@ Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak oze
     except Exception as e:
         return {"note": "", "error": str(e)}
 
-@app.delete("/cache/clear")
+@app.get("/cache/clear")
 def clear_cache():
     import glob
     cache_dir = os.path.join(DEFAULT_CONFIG["project_dir"], "dataflows/data_cache")
