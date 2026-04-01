@@ -1,10 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 import anthropic
 import os
+import uuid
+import threading
 
 app = FastAPI()
 
@@ -17,6 +19,10 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# In-memory job store
+jobs = {}
+jobs_lock = threading.Lock()
+
 class AnalyzeRequest(BaseModel):
     ticker: str
     date: str
@@ -28,7 +34,7 @@ class AnalyzeRequest(BaseModel):
 
 PROVIDER_MODELS = {
     "anthropic": {"deep": "claude-opus-4-20250514", "quick": "claude-haiku-4-5-20251001"},
-    "openai":    {"deep": "gpt-4o",            "quick": "gpt-4o-mini"},
+    "openai":    {"deep": "gpt-4o", "quick": "gpt-4o-mini"},
 }
 
 BIST_TICKERS = [
@@ -96,94 +102,124 @@ def translate_to_turkish(text: str) -> str:
             max_tokens=4096,
             messages=[{
                 "role": "user",
-                "content": f"Asagidaki finansal analiz raporunu Turkcey cevir. Sadece ceviriyi ver, baska hicbir sey ekleme:\n\n{text[:3000]}"
+                "content": f"Asagidaki finansal analiz raporunu Turkce cevir. Sadece ceviriyi ver, baska hicbir sey ekleme:\n\n{text[:3000]}"
             }]
         )
         return message.content[0].text
     except:
         return text
 
+def run_analysis_job(job_id: str, req: AnalyzeRequest):
+    try:
+        with jobs_lock:
+            jobs[job_id]["status"] = "running"
+
+        ticker = req.ticker
+        if ticker in BIST_TICKERS and not ticker.endswith(".IS"):
+            ticker = ticker + ".IS"
+
+        models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
+        config = DEFAULT_CONFIG.copy()
+        config["deep_think_llm"] = models["deep"]
+        config["quick_think_llm"] = models["quick"]
+        config["max_debate_rounds"] = req.depth
+        config["online_tools"] = True
+
+        if req.provider == "openai":
+            config["llm_provider"] = "openai"
+            config["backend_url"] = "https://api.openai.com/v1"
+            real_key = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
+            os.environ["OPENAI_API_KEY"] = real_key
+        elif req.provider == "anthropic":
+            config["llm_provider"] = "anthropic"
+            config["backend_url"] = "https://api.anthropic.com"
+
+        if req.sources:
+            if req.market == "BIST":
+                os.environ["ANALYST_SOURCE_NOTES"] = (
+                    f"ONEMLI: Bu analiz Turkiye borsasi hissesi icin yapilmaktadir. "
+                    f"Temel analiz icin {', '.join(req.sources.get('fundamentals', []))} kaynaklarini kullan."
+                )
+            else:
+                os.environ["ANALYST_SOURCE_NOTES"] = (
+                    f"IMPORTANT: Focus on these sources - "
+                    f"Fundamentals: {', '.join(req.sources.get('fundamentals', []))}."
+                )
+        else:
+            os.environ["ANALYST_SOURCE_NOTES"] = ""
+
+        ta = TradingAgentsGraph(debug=False, config=config)
+        state, decision = ta.propagate(ticker, req.date)
+
+        def get(key):
+            val = state.get(key)
+            if not val:
+                return ""
+            return str(val)
+
+        debate = state.get("investment_debate_state") or {}
+
+        reports = {
+            "fundamentals": get("market_report"),
+            "sentiment":    get("sentiment_report"),
+            "news":         get("news_report"),
+            "technical":    get("technical_report"),
+            "bull":         str(debate.get("bull_history", "") or ""),
+            "bear":         str(debate.get("bear_history", "") or ""),
+            "trader":       get("trader_investment_plan"),
+            "risk":         get("final_trade_decision"),
+            "scenario":     get("scenario_report"),
+        }
+
+        final_decision = str(decision)
+
+        if req.lang == "tr":
+            for key in reports:
+                reports[key] = translate_to_turkish(reports[key])
+            final_decision = translate_to_turkish(final_decision)
+
+        with jobs_lock:
+            jobs[job_id]["status"] = "done"
+            jobs[job_id]["result"] = {
+                "decision": final_decision,
+                "reports": reports,
+            }
+
+    except Exception as e:
+        with jobs_lock:
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = str(e)
+
+
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
-    ticker = req.ticker
-    if ticker in BIST_TICKERS and not ticker.endswith(".IS"):
-        ticker = ticker + ".IS"
+    job_id = str(uuid.uuid4())
+    with jobs_lock:
+        jobs[job_id] = {"status": "queued", "result": None, "error": None}
+    thread = threading.Thread(target=run_analysis_job, args=(job_id, req))
+    thread.daemon = True
+    thread.start()
+    return {"job_id": job_id}
 
-    models = PROVIDER_MODELS.get(req.provider, PROVIDER_MODELS["anthropic"])
-    config = DEFAULT_CONFIG.copy()
-    config["deep_think_llm"] = models["deep"]
-    config["quick_think_llm"] = models["quick"]
-    config["max_debate_rounds"] = req.depth
-    config["online_tools"] = True
 
-    if req.provider == "openai":
-        config["llm_provider"] = "openai"
-        config["backend_url"] = "https://api.openai.com/v1"
-        real_key = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
-        os.environ["OPENAI_API_KEY"] = real_key
-    elif req.provider == "anthropic":
-        config["llm_provider"] = "anthropic"
-        config["backend_url"] = "https://api.anthropic.com"
-    else:
-        config["llm_provider"] = req.provider
-
-    # Kaynak yonlendirmesi environment variable ile set et
-    if req.sources:
-        if req.market == "BIST":
-            os.environ["ANALYST_SOURCE_NOTES"] = (
-                f"ONEMLI: Bu analiz Turkiye borsasi hissesi icin yapilmaktadir. "
-                f"Temel analiz icin {', '.join(req.sources.get('fundamentals', []))} kaynaklarini, "
-                f"haber analizi icin {', '.join(req.sources.get('news', []))} kaynaklarini, "
-                f"duygu analizi icin {', '.join(req.sources.get('sentiment', []))} kaynaklarini, "
-                f"teknik analiz icin {', '.join(req.sources.get('technical', []))} kaynaklarini dikkate al."
-            )
-        else:
-            os.environ["ANALYST_SOURCE_NOTES"] = (
-                f"IMPORTANT: Focus on these sources - "
-                f"Fundamentals: {', '.join(req.sources.get('fundamentals', []))}, "
-                f"News: {', '.join(req.sources.get('news', []))}, "
-                f"Sentiment: {', '.join(req.sources.get('sentiment', []))}, "
-                f"Technical: {', '.join(req.sources.get('technical', []))}."
-            )
-    else:
-        os.environ["ANALYST_SOURCE_NOTES"] = ""
-
-    ta = TradingAgentsGraph(debug=False, config=config)
-    state, decision = ta.propagate(ticker, req.date)
-
-    def get(key):
-        val = state.get(key)
-        if not val:
-            return ""
-        return str(val)
-
-    debate = state.get("investment_debate_state") or {}
-
-    reports = {
-        "fundamentals": get("market_report"),
-        "sentiment":    get("sentiment_report"),
-        "news":         get("news_report"),
-        "technical":    get("technical_report"),
-        "bull":         str(debate.get("bull_history", "") or ""),
-        "bear":         str(debate.get("bear_history", "") or ""),
-        "trader":       get("trader_investment_plan"),
-        "risk":         get("final_trade_decision"),
-        "scenario":     get("scenario_report"),
+@app.get("/status/{job_id}")
+def get_status(job_id: str):
+    with jobs_lock:
+        job = jobs.get(job_id)
+    if not job:
+        return {"status": "not_found"}
+    return {
+        "status": job["status"],
+        "result": job.get("result"),
+        "error": job.get("error"),
     }
 
-    final_decision = str(decision)
-
-    if req.lang == "tr":
-        for key in reports:
-            reports[key] = translate_to_turkish(reports[key])
-        final_decision = translate_to_turkish(final_decision)
-
-    return {"decision": final_decision, "reports": reports}
 
 @app.get("/bist-stocks")
 def get_bist_stocks():
     stocks = [{"symbol": t, "name": t} for t in BIST_TICKERS]
     return {"stocks": stocks}
+
 
 @app.get("/price/{symbol}")
 def get_price(symbol: str):
@@ -204,12 +240,14 @@ def get_price(symbol: str):
     except Exception as e:
         return {"symbol": symbol, "price": None, "error": str(e)}
 
+
 class CompareRequest(BaseModel):
     symbol: str
     current_decision: str
     current_report: str
     previous_decision: str
     previous_report: str
+
 
 @app.post("/compare")
 def compare_analyses(req: CompareRequest):
@@ -223,29 +261,11 @@ def compare_analyses(req: CompareRequest):
                 "content": f"""Asagida {req.symbol} hissesi icin iki farkli tarihte yapilan analiz var.
 
 Onceki Analiz Karari: {req.previous_decision[:200]}
-Onceki Rapor Ozeti: {req.previous_report[:500]}
-
 Yeni Analiz Karari: {req.current_decision[:200]}
-Yeni Rapor Ozeti: {req.current_report[:500]}
 
-Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak ozet.
-Karar degistiyse bunu vurgula. Kisa ve net ol."""
+Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak ozet."""
             }]
         )
         return {"note": message.content[0].text}
     except Exception as e:
         return {"note": "", "error": str(e)}
-@app.get("/test-kap/{ticker}")
-def test_kap(ticker: str):
-    try:
-        import requests
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-        }
-        # KAP'tan son aciklamalar
-        url = f"https://www.kap.org.tr/tr/api/memberDisclosureQuery?memberCode={ticker}&year=2026"
-        res = requests.get(url, headers=headers, timeout=10)
-        return {"status": res.status_code, "data": res.json()}
-    except Exception as e:
-        return {"error": str(e)}
