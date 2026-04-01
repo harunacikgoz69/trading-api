@@ -269,3 +269,15 @@ Bu iki analiz arasindaki en onemli degisiklikleri 2-3 cumleyle Turkce olarak oze
         return {"note": message.content[0].text}
     except Exception as e:
         return {"note": "", "error": str(e)}
+
+@app.delete("/cache/clear")
+def clear_cache():
+    import glob
+    cache_dir = os.path.join(DEFAULT_CONFIG["project_dir"], "dataflows/data_cache")
+    files = glob.glob(os.path.join(cache_dir, "*.csv"))
+    for f in files:
+        try:
+            os.remove(f)
+        except:
+            pass
+    return {"cleared": len(files), "files": [os.path.basename(f) for f in files]}

@@ -1,28 +1,49 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-import time
-import json
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_global_news,
     get_language_instruction,
     get_news,
+    get_tr_news,
+    get_tcmb_rates,
 )
 from tradingagents.dataflows.config import get_config
-
 
 def create_news_analyst(llm):
     def news_analyst_node(state):
         current_date = state["trade_date"]
-        instrument_context = build_instrument_context(state["company_of_interest"])
+        company = state["company_of_interest"]
+        instrument_context = build_instrument_context(company)
+        is_bist = company.endswith(".IS") or company.endswith(".is")
 
-        tools = [
-            get_news,
-            get_global_news,
-        ]
+        if is_bist:
+            tools = [
+                get_news,
+                get_global_news,
+                get_tr_news,
+                get_tcmb_rates,
+            ]
+            bist_note = (
+                " IMPORTANT: This is a BIST (Turkish stock market) stock. "
+                "You MUST use get_tr_news to fetch Turkish news from AA and BBC Turkce. "
+                "You MUST use get_tcmb_rates to get current USD/TRY, EUR/TRY exchange rates. "
+                "Include Turkish macro context (inflation, interest rates, TRY volatility) in your report."
+            )
+        else:
+            tools = [
+                get_news,
+                get_global_news,
+            ]
+            bist_note = ""
 
         system_message = (
-            "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
-            + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
+            "You are a news researcher tasked with analyzing recent news and trends over the past week. "
+            "Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. "
+            "Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, "
+            "and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. "
+            "Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            + bist_note
+            + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + get_language_instruction()
         )
 
@@ -52,7 +73,6 @@ def create_news_analyst(llm):
         result = chain.invoke(state["messages"])
 
         report = ""
-
         if len(result.tool_calls) == 0:
             report = result.content
 
