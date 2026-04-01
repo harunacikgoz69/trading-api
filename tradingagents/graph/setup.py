@@ -1,5 +1,3 @@
-# TradingAgents/graph/setup.py
-
 from typing import Dict, Any
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph, START
@@ -12,19 +10,18 @@ from .conditional_logic import ConditionalLogic
 
 
 class GraphSetup:
-    """Handles the setup and configuration of the agent graph."""
 
     def __init__(
         self,
-        quick_thinking_llm: ChatOpenAI,
-        deep_thinking_llm: ChatOpenAI,
-        tool_nodes: Dict[str, ToolNode],
+        quick_thinking_llm,
+        deep_thinking_llm,
+        tool_nodes,
         bull_memory,
         bear_memory,
         trader_memory,
         invest_judge_memory,
         portfolio_manager_memory,
-        conditional_logic: ConditionalLogic,
+        conditional_logic,
     ):
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
@@ -36,9 +33,7 @@ class GraphSetup:
         self.portfolio_manager_memory = portfolio_manager_memory
         self.conditional_logic = conditional_logic
 
-    def setup_graph(
-        self, selected_analysts=["market", "social", "news", "fundamentals"]
-    ):
+    def setup_graph(self, selected_analysts=["market", "social", "news", "fundamentals"]):
         if len(selected_analysts) == 0:
             raise ValueError("Trading Agents Graph Setup Error: no analysts selected!")
 
@@ -131,8 +126,10 @@ class GraphSetup:
                 "Research Manager": "Research Manager",
             },
         )
+
         workflow.add_edge("Research Manager", "Trader")
         workflow.add_edge("Trader", "Aggressive Analyst")
+
         workflow.add_conditional_edges(
             "Aggressive Analyst",
             self.conditional_logic.should_continue_risk_analysis,
@@ -155,3 +152,10 @@ class GraphSetup:
             {
                 "Aggressive Analyst": "Aggressive Analyst",
                 "Portfolio Manager": "Portfolio Manager",
+            },
+        )
+
+        workflow.add_edge("Portfolio Manager", "Scenario Agent")
+        workflow.add_edge("Scenario Agent", END)
+
+        return workflow.compile()
