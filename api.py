@@ -25,8 +25,8 @@ class AnalyzeRequest(BaseModel):
     sources: dict = None
 
 PROVIDER_MODELS = {
-    "anthropic": {"deep": "claude-opus-4-20250514", "quick": "claude-sonnet-4-20250514"},
-    "openai":    {"deep": "gpt-4o",                 "quick": "gpt-4o-mini"},
+    "anthropic": {"deep": "claude-sonnet-4-5", "quick": "claude-haiku-4-5"},
+    "openai":    {"deep": "gpt-4o",            "quick": "gpt-4o-mini"},
 }
 
 BIST_TICKERS = [
