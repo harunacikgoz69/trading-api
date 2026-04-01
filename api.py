@@ -116,8 +116,12 @@ def analyze(req: AnalyzeRequest):
 
     if req.provider == "openai":
         config["llm_provider"] = "openai"
+        config["backend_url"] = "https://api.openai.com/v1"
         real_key = os.environ.get("OPENAI_API_KEY_REAL", os.environ.get("OPENAI_API_KEY", ""))
         os.environ["OPENAI_API_KEY"] = real_key
+    elif req.provider == "anthropic":
+        config["llm_provider"] = "anthropic"
+        config["backend_url"] = "https://api.anthropic.com"
     else:
         config["llm_provider"] = req.provider
 
