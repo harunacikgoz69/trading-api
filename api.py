@@ -166,6 +166,7 @@ def analyze(req: AnalyzeRequest):
         "bear":         str(debate.get("bear_history", "") or ""),
         "trader":       get("trader_investment_plan"),
         "risk":         get("final_trade_decision"),
+        "scenario":     get("scenario_report"),
     }
 
     final_decision = str(decision)
