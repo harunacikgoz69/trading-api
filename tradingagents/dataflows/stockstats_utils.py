@@ -61,9 +61,10 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     end_str = today_date.strftime("%Y-%m-%d")
 
     os.makedirs(config["data_cache_dir"], exist_ok=True)
+    safe_symbol = symbol.replace(".", "_").replace("/", "_")
     data_file = os.path.join(
         config["data_cache_dir"],
-        f"{symbol}-YFin-data-{start_str}-{end_str}.csv",
+        f"{safe_symbol}-YFin-data-{start_str}-{end_str}.csv",
     )
 
     if os.path.exists(data_file):
