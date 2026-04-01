@@ -51,3 +51,27 @@ def get_insider_transactions(
         str: A report of insider transaction data
     """
     return route_to_vendor("get_insider_transactions", ticker)
+
+@tool
+def get_tr_news(
+    ticker: Annotated[str, "Ticker symbol (e.g. THYAO or THYAO.IS)"],
+) -> str:
+    """
+    Retrieve Turkish economic news from AA and BBC Turkce RSS feeds.
+    Filters news relevant to the given BIST stock symbol.
+    Use this for BIST (Turkish stock market) stocks.
+    Returns formatted Turkish news string.
+    """
+    from tradingagents.dataflows.tr_news import get_tr_news as _get_tr_news
+    return _get_tr_news(ticker)
+
+
+@tool
+def get_tcmb_rates() -> str:
+    """
+    Retrieve current TCMB (Turkish Central Bank) exchange rates.
+    Returns USD/TRY, EUR/TRY, GBP/TRY rates.
+    Use this for BIST stocks to understand macro context.
+    """
+    from tradingagents.dataflows.tr_news import get_tcmb_rates as _get_tcmb_rates
+    return _get_tcmb_rates()
