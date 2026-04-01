@@ -62,19 +62,15 @@ Probabilities must sum to 100%. Be specific with price targets based on the rese
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_message),
-            ("human", f"""Here are the research reports:
+            ("human", f"""Here are brief research summaries:
 
-MARKET REPORT:
-{market_report}
+MARKET: {market_report[:500]}
 
-FUNDAMENTALS REPORT:
-{fundamentals_report}
+FUNDAMENTALS: {fundamentals_report[:500]}
 
-NEWS REPORT:
-{news_report}
+NEWS: {news_report[:500]}
 
-SENTIMENT REPORT:
-{sentiment_report}
+SENTIMENT: {sentiment_report[:500]}
 
 Based on all this research and the final decision of {final_decision}, generate the scenario analysis."""),
         ])
