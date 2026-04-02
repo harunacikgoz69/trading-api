@@ -20,27 +20,60 @@ def get_kap_disclosures(member_code: str) -> str:
     if not headers:
         return "KAP API credentials eksik."
     try:
-        params = {"memberCode": member_code, "pageSize": 20, "pageNumber": 1}
+        # Önce member ID'yi al
         res = requests.get(
+            f"{BASE_URL}/members",
+            headers=headers,
+            timeout=15,
+            verify=False,
+        )
+        members = res.json() if res.status_code == 200 else []
+        if isinstance(members, dict):
+            members = members.get("data", [])
+
+        member = next(
+            (m for m in members if
+             m.get("stockCode", "").upper() == member_code.upper() or
+             m.get("memberCode", "").upper() == member_code.upper()),
+            None
+        )
+        member_id = member.get("id") if member else None
+
+        # disclosures endpoint'ini dene
+        params = {}
+        if member_id:
+            params["memberId"] = member_id
+
+        res2 = requests.get(
             f"{BASE_URL}/disclosures",
             headers=headers,
             params=params,
             timeout=15,
             verify=False,
         )
-        if res.status_code != 200:
-            return f"KAP disclosures hatası: HTTP {res.status_code} — {res.text[:200]}"
 
-        items = res.json()
+        if res2.status_code != 200:
+            # Son bildirim index ile dene
+            res3 = requests.get(
+                f"{BASE_URL}/lastDisclosureIndex",
+                headers=headers,
+                timeout=10,
+                verify=False,
+            )
+            return f"disclosures HTTP {res2.status_code}: {res2.text[:300]}\nlastIndex: {res3.text[:200] if res3.status_code==200 else res3.status_code}"
+
+        items = res2.json()
         if isinstance(items, dict):
-            items = items.get("data", items.get("disclosures", []))
+            items = items.get("data", items.get("disclosures", [items]))
+        if not isinstance(items, list):
+            items = [items]
         if not items:
             return f"{member_code} için KAP bildirimi bulunamadı."
 
         output = [f"## KAP Bildirimleri — {member_code}\n"]
         for item in items[:10]:
             title = (item.get("title") or item.get("subject") or
-                     item.get("baslik") or "")
+                     item.get("baslik") or str(item))
             date = (item.get("publishDate") or item.get("yayimTarihi") or
                     item.get("date") or "")
             category = item.get("disclosureType") or item.get("tip") or ""
