@@ -71,12 +71,34 @@ def get_kap_disclosures(member_code: str) -> str:
             return f"{member_code} için KAP bildirimi bulunamadı."
 
         output = [f"## KAP Bildirimleri — {member_code} (Son {len(unique_items)} bildirim)\n"]
-        for item in unique_items[:15]:
-            title = item.get("title") or ""
+        for item in unique_items[:10]:
             category = item.get("disclosureType") or ""
             disc_class = item.get("disclosureClass") or ""
             disc_index = item.get("disclosureIndex") or ""
-            output.append(f"**{disc_class}/{category}**: {title} (ID: {disc_index})")
+
+            # Detay çek
+            try:
+                r_d = requests.get(
+                    f"{BASE_URL}/disclosureDetail/{disc_index}",
+                    headers=headers,
+                    params={"fileType": "data"},
+                    timeout=8,
+                    verify=False,
+                )
+                if r_d.status_code == 200:
+                    d = r_d.json()
+                    subject = d.get("subject") or {}
+                    title = subject.get("tr") or subject.get("en") or item.get("title") or ""
+                    date = d.get("time") or ""
+                    summary = d.get("summary") or {}
+                    summary_text = summary.get("tr") or summary.get("en") or ""
+                    output.append(f"**{date[:10]} — {disc_class}/{category}**: {title}")
+                    if summary_text and summary_text != title:
+                        output.append(f"  {summary_text[:200]}")
+                else:
+                    output.append(f"**{disc_class}/{category}**: ID {disc_index}")
+            except:
+                output.append(f"**{disc_class}/{category}**: ID {disc_index}")
 
         return "\n".join(output)
     except Exception as e:
