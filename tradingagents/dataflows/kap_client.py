@@ -24,7 +24,7 @@ def get_kap_disclosures(member_code: str) -> str:
         r1 = requests.get(f"{BASE_URL}/lastDisclosureIndex", headers=headers, timeout=10, verify=False)
         if r1.status_code != 200:
             return f"KAP lastDisclosureIndex hatası: {r1.status_code}"
-        last_index = r1.json().get("lastDisclosureIndex", "0")
+        last_index = int(r1.json().get("lastDisclosureIndex", 0))
 
         # Member ID'yi al
         r_m = requests.get(f"{BASE_URL}/members", headers=headers, timeout=15, verify=False)
@@ -32,43 +32,46 @@ def get_kap_disclosures(member_code: str) -> str:
         if isinstance(members, dict):
             members = members.get("data", [])
         member = next(
-            (m for m in members if
-             m.get("stockCode", "").upper() == member_code.upper()),
+            (m for m in members if m.get("stockCode", "").upper() == member_code.upper()),
             None
         )
         company_id = str(member.get("id")) if member else None
+        if not company_id:
+            return f"{member_code} için KAP üye ID bulunamadı."
 
-        # companyId filtresiyle disclosures listesi çek
-        params = {"disclosureIndex": last_index}
-        if company_id:
-            params["companyId"] = company_id
+        # Geriye doğru tarayarak en güncel bildirimleri bul
+        all_items = []
+        step = 50
+        search_from = max(0, last_index - 500)
 
-        r2 = requests.get(
-            f"{BASE_URL}/disclosures",
-            headers=headers,
-            params=params,
-            timeout=15,
-            verify=False,
-        )
+        for start_idx in range(search_from, last_index + 1, step):
+            r = requests.get(
+                f"{BASE_URL}/disclosures",
+                headers=headers,
+                params={"disclosureIndex": str(start_idx), "companyId": company_id},
+                timeout=15,
+                verify=False,
+            )
+            if r.status_code == 200:
+                items = r.json()
+                if isinstance(items, list) and items:
+                    all_items.extend(items)
 
-        if r2.status_code != 200:
-            return f"KAP disclosures hatası: HTTP {r2.status_code} — {r2.text[:200]}"
+        # En güncel bildirimleri önce göster
+        all_items.sort(key=lambda x: int(x.get("disclosureIndex", 0)), reverse=True)
+        seen = set()
+        unique_items = []
+        for item in all_items:
+            idx = item.get("disclosureIndex")
+            if idx not in seen:
+                seen.add(idx)
+                unique_items.append(item)
 
-        items = r2.json()
-        if isinstance(items, dict):
-            items = [items]
-        if not isinstance(items, list):
-            items = []
+        if not unique_items:
+            return f"{member_code} için KAP bildirimi bulunamadı."
 
-        # companyId ile filtrele
-        if company_id:
-            items = [i for i in items if str(i.get("companyId", "")) == company_id]
-
-        if not items:
-            return f"{member_code} için KAP bildirimi bulunamadı (companyId: {company_id})."
-
-        output = [f"## KAP Bildirimleri — {member_code}\n"]
-        for item in items[:15]:
+        output = [f"## KAP Bildirimleri — {member_code} (Son {len(unique_items)} bildirim)\n"]
+        for item in unique_items[:15]:
             title = item.get("title") or ""
             category = item.get("disclosureType") or ""
             disc_class = item.get("disclosureClass") or ""
