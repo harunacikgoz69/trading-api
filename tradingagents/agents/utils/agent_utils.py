@@ -19,8 +19,8 @@ from tradingagents.agents.utils.news_data_tools import (
     get_global_news,
     get_tr_news,
     get_tcmb_rates,
+    get_kap_disclosures,
 )
-
 
 def get_language_instruction() -> str:
     """Return a prompt instruction for the configured output language.

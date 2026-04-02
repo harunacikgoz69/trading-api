@@ -75,3 +75,16 @@ def get_tcmb_rates() -> str:
     """
     from tradingagents.dataflows.tr_news import get_tcmb_rates as _get_tcmb_rates
     return _get_tcmb_rates()
+
+@tool
+def get_kap_disclosures(
+    ticker: Annotated[str, "BIST ticker symbol (e.g. THYAO)"],
+) -> str:
+    """
+    Retrieve KAP (Kamuyu Aydinlatma Platformu) official disclosures for a BIST stock.
+    Returns recent public announcements, financial reports, material events.
+    Use this for BIST stocks to get official Turkish stock exchange disclosures.
+    """
+    from tradingagents.dataflows.kap_client import get_kap_disclosures as _get_kap
+    member_code = ticker.replace(".IS", "").replace(".is", "")
+    return _get_kap(member_code)
