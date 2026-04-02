@@ -1,9 +1,9 @@
 import requests
 import os
 import base64
-from typing import Optional
 
-BASE_URL = "https://apigwdev.mkk.com.tr/api/vyk"
+BASE_URL = "https://apigw.mkk.com.tr/api/vyk"
+BASE_URL_DEV = "https://apigwdev.mkk.com.tr/api/vyk"
 
 
 def _get_headers() -> dict:
@@ -15,19 +15,29 @@ def _get_headers() -> dict:
     return {"Authorization": f"Basic {encoded}"}
 
 
+def _get(url, headers, params=None, timeout=20):
+    """Try prod first, fallback to dev."""
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=timeout, verify=False)
+        if r.status_code in [200, 400, 404]:
+            return r
+    except Exception:
+        pass
+    dev_url = url.replace("apigw.mkk.com.tr", "apigwdev.mkk.com.tr")
+    return requests.get(dev_url, headers=headers, params=params, timeout=timeout, verify=False)
+
+
 def get_kap_disclosures(member_code: str) -> str:
     headers = _get_headers()
     if not headers:
         return "KAP API credentials eksik."
     try:
-        # Son index al
-        r1 = requests.get(f"{BASE_URL}/lastDisclosureIndex", headers=headers, timeout=10, verify=False)
+        r1 = _get(f"{BASE_URL}/lastDisclosureIndex", headers=headers, timeout=20)
         if r1.status_code != 200:
             return f"KAP lastDisclosureIndex hatası: {r1.status_code}"
         last_index = int(r1.json().get("lastDisclosureIndex", 0))
 
-        # Member ID'yi al
-        r_m = requests.get(f"{BASE_URL}/members", headers=headers, timeout=15, verify=False)
+        r_m = _get(f"{BASE_URL}/members", headers=headers, timeout=20)
         members = r_m.json() if r_m.status_code == 200 else []
         if isinstance(members, dict):
             members = members.get("data", [])
@@ -39,25 +49,22 @@ def get_kap_disclosures(member_code: str) -> str:
         if not company_id:
             return f"{member_code} için KAP üye ID bulunamadı."
 
-        # Geriye doğru tarayarak en güncel bildirimleri bul
         all_items = []
         step = 50
         search_from = max(0, last_index - 5000)
 
         for start_idx in range(search_from, last_index + 1, step):
-            r = requests.get(
+            r = _get(
                 f"{BASE_URL}/disclosures",
                 headers=headers,
                 params={"disclosureIndex": str(start_idx), "companyId": company_id},
                 timeout=15,
-                verify=False,
             )
             if r.status_code == 200:
                 items = r.json()
                 if isinstance(items, list) and items:
                     all_items.extend(items)
 
-        # En güncel bildirimleri önce göster
         all_items.sort(key=lambda x: int(x.get("disclosureIndex", 0)), reverse=True)
         seen = set()
         unique_items = []
@@ -75,20 +82,17 @@ def get_kap_disclosures(member_code: str) -> str:
             category = item.get("disclosureType") or ""
             disc_class = item.get("disclosureClass") or ""
             disc_index = item.get("disclosureIndex") or ""
-
-            # Detay çek
             try:
-                r_d = requests.get(
+                r_d = _get(
                     f"{BASE_URL}/disclosureDetail/{disc_index}",
                     headers=headers,
                     params={"fileType": "data"},
-                    timeout=8,
-                    verify=False,
+                    timeout=15,
                 )
                 if r_d.status_code == 200:
                     d = r_d.json()
                     subject = d.get("subject") or {}
-                    title = subject.get("tr") or subject.get("en") or item.get("title") or ""
+                    title = subject.get("tr") or subject.get("en") or ""
                     date = d.get("time") or ""
                     summary = d.get("summary") or {}
                     summary_text = summary.get("tr") or summary.get("en") or ""
@@ -104,17 +108,13 @@ def get_kap_disclosures(member_code: str) -> str:
     except Exception as e:
         return f"KAP disclosures hatası: {str(e)}"
 
+
 def get_kap_member_detail(member_code: str) -> str:
     headers = _get_headers()
     if not headers:
         return "KAP API credentials eksik."
     try:
-        res = requests.get(
-            f"{BASE_URL}/members",
-            headers=headers,
-            timeout=15,
-            verify=False,
-        )
+        res = _get(f"{BASE_URL}/members", headers=headers, timeout=20)
         if res.status_code != 200:
             return f"KAP members hatası: HTTP {res.status_code}"
 
