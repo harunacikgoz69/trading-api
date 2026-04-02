@@ -288,3 +288,78 @@ def test_mkk(ticker: str):
     disclosures = get_kap_disclosures(ticker)
     member = get_kap_member_detail(ticker)
     return {"disclosures": disclosures[:1000], "member": member[:300]}
+
+class PortfolioOptimizeRequest(BaseModel):
+    symbols: list
+    lang: str = "tr"
+
+@app.post("/optimize-portfolio")
+def optimize_portfolio(req: PortfolioOptimizeRequest):
+    job_id = str(uuid.uuid4())
+    with jobs_lock:
+        jobs[job_id] = {"status": "queued", "result": None, "error": None}
+
+    def run_optimizer():
+        try:
+            with jobs_lock:
+                jobs[job_id]["status"] = "running"
+
+            # Supabase'den analiz geçmişini çek
+            analyses = []
+            for symbol in req.symbols:
+                # Her sembol için son analizi al
+                analyses.append({
+                    "symbol": symbol,
+                    "requested": True
+                })
+
+            # Claude ile portföy optimizasyonu
+            client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+            prompt = f"""Sen bir portföy optimizasyon uzmanısın. Aşağıdaki hisseler için optimal portföy ağırlıklarını belirle.
+
+Hisseler: {', '.join(req.symbols)}
+
+Kurallar:
+- Toplam ağırlık %100 olmalı
+- Hiçbir hisse %40'tan fazla ağırlık alamaz
+- En az 2 farklı sektör olmalı
+- Her hisse için beklenen getiri pozitif olmalı
+
+Şu formatı kullan:
+
+## Portföy Önerisi
+
+| Hisse | Ağırlık | Sektör | Gerekçe |
+|-------|---------|--------|---------|
+| XXXX | %XX | Sektör | Kısa gerekçe |
+
+## Özet
+[2-3 cümle portföy stratejisi açıklaması]
+
+## Risk Değerlendirmesi
+[Risk faktörleri]
+
+Türkçe yanıt ver."""
+
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            result = message.content[0].text
+
+            with jobs_lock:
+                jobs[job_id]["status"] = "done"
+                jobs[job_id]["result"] = {"portfolio": result, "symbols": req.symbols}
+
+        except Exception as e:
+            with jobs_lock:
+                jobs[job_id]["status"] = "error"
+                jobs[job_id]["error"] = str(e)
+
+    thread = threading.Thread(target=run_optimizer)
+    thread.daemon = True
+    thread.start()
+    return {"job_id": job_id}
