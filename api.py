@@ -281,3 +281,12 @@ def clear_cache():
         except:
             pass
     return {"cleared": len(files), "files": [os.path.basename(f) for f in files]}
+
+@app.get("/test-mkk/{ticker}")
+def test_mkk(ticker: str):
+    from tradingagents.dataflows.kap_client import get_kap_disclosures, _get_token
+    token = _get_token()
+    if not token:
+        return {"error": "Token alinamadi", "mkk_api_key_set": bool(os.environ.get("MKK_API_KEY"))}
+    result = get_kap_disclosures(ticker)
+    return {"token_ok": True, "result": result[:500]}
