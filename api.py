@@ -288,17 +288,22 @@ def test_mkk(ticker: str):
     import base64
     api_key = os.environ.get("MKK_API_KEY", "")
     api_secret = os.environ.get("MKK_API_SECRET", "")
-    BASE = "https://apigwdev.mkk.com.tr/api/vyk"
+    
     results = {}
-    for fmt_name, headers in [
-        ("basic_key_only", {"Authorization": f"Basic {base64.b64encode(api_key.encode()).decode()}"}),
-        ("basic_key_secret", {"Authorization": f"Basic {base64.b64encode(f'{api_key}:{api_secret}'.encode()).decode()}"}),
-        ("apikey_header", {"apikey": api_key, "apisecret": api_secret}),
-        ("bearer_key", {"Authorization": f"Bearer {api_key}"}),
-    ]:
+    encoded = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
+    
+    test_cases = [
+        ("prod_token", "https://apigw.mkk.com.tr/api/vyk/generateToken", {"Authorization": f"Basic {encoded}"}),
+        ("dev_members", "https://apigwdev.mkk.com.tr/api/vyk/members", {"Authorization": f"Basic {encoded}"}),
+        ("prod_members", "https://apigw.mkk.com.tr/api/vyk/members", {"Authorization": f"Basic {encoded}"}),
+        ("dev_members_apikey", "https://apigwdev.mkk.com.tr/api/vyk/members", {"apikey": api_key}),
+    ]
+    
+    for name, url, headers in test_cases:
         try:
-            r = req.get(f"{BASE}/generateToken", headers=headers, timeout=10, verify=False)
-            results[fmt_name] = {"status": r.status_code, "body": r.text[:200]}
+            r = req.get(url, headers=headers, timeout=10, verify=False)
+            results[name] = {"status": r.status_code, "body": r.text[:200]}
         except Exception as e:
-            results[fmt_name] = {"error": str(e)}
+            results[name] = {"error": str(e)}
+    
     return results
