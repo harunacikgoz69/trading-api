@@ -1,25 +1,87 @@
-@app.get("/test-mkk/{ticker}")
-def test_mkk(ticker: str):
-    import requests as req
-    import base64
+import requests
+import os
+import base64
+from typing import Optional
+
+BASE_URL = "https://apigwdev.mkk.com.tr/api/vyk"
+
+
+def _get_headers() -> dict:
     api_key = os.environ.get("MKK_API_KEY", "")
     api_secret = os.environ.get("MKK_API_SECRET", "")
-    
-    results = {}
+    if not api_key or not api_secret:
+        return {}
     encoded = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
-    
-    test_cases = [
-        ("prod_token", "https://apigw.mkk.com.tr/api/vyk/generateToken", {"Authorization": f"Basic {encoded}"}),
-        ("dev_members", "https://apigwdev.mkk.com.tr/api/vyk/members", {"Authorization": f"Basic {encoded}"}),
-        ("prod_members", "https://apigw.mkk.com.tr/api/vyk/members", {"Authorization": f"Basic {encoded}"}),
-        ("dev_members_apikey", "https://apigwdev.mkk.com.tr/api/vyk/members", {"apikey": api_key}),
-    ]
-    
-    for name, url, headers in test_cases:
-        try:
-            r = req.get(url, headers=headers, timeout=10, verify=False)
-            results[name] = {"status": r.status_code, "body": r.text[:200]}
-        except Exception as e:
-            results[name] = {"error": str(e)}
-    
-    return results
+    return {"Authorization": f"Basic {encoded}"}
+
+
+def get_kap_disclosures(member_code: str) -> str:
+    headers = _get_headers()
+    if not headers:
+        return "KAP API credentials eksik."
+    try:
+        params = {"memberCode": member_code, "pageSize": 20, "pageNumber": 1}
+        res = requests.get(
+            f"{BASE_URL}/disclosures",
+            headers=headers,
+            params=params,
+            timeout=15,
+            verify=False,
+        )
+        if res.status_code != 200:
+            return f"KAP disclosures hatası: HTTP {res.status_code} — {res.text[:200]}"
+
+        items = res.json()
+        if isinstance(items, dict):
+            items = items.get("data", items.get("disclosures", []))
+        if not items:
+            return f"{member_code} için KAP bildirimi bulunamadı."
+
+        output = [f"## KAP Bildirimleri — {member_code}\n"]
+        for item in items[:10]:
+            title = (item.get("title") or item.get("subject") or
+                     item.get("baslik") or "")
+            date = (item.get("publishDate") or item.get("yayimTarihi") or
+                    item.get("date") or "")
+            category = item.get("disclosureType") or item.get("tip") or ""
+            output.append(f"**{date}** — {category}: {title}")
+
+        return "\n".join(output)
+    except Exception as e:
+        return f"KAP disclosures hatası: {str(e)}"
+
+
+def get_kap_member_detail(member_code: str) -> str:
+    headers = _get_headers()
+    if not headers:
+        return "KAP API credentials eksik."
+    try:
+        res = requests.get(
+            f"{BASE_URL}/members",
+            headers=headers,
+            timeout=15,
+            verify=False,
+        )
+        if res.status_code != 200:
+            return f"KAP members hatası: HTTP {res.status_code}"
+
+        members = res.json()
+        if isinstance(members, dict):
+            members = members.get("data", [])
+
+        member = next(
+            (m for m in members if
+             m.get("memberCode", "").upper() == member_code.upper() or
+             m.get("stockCode", "").upper() == member_code.upper()),
+            None
+        )
+        if not member:
+            return f"{member_code} için KAP üye bilgisi bulunamadı."
+
+        output = [f"## KAP Şirket Bilgileri — {member_code}\n"]
+        for key, val in member.items():
+            if val and str(val).strip():
+                output.append(f"**{key}**: {val}")
+        return "\n".join(output)
+    except Exception as e:
+        return f"KAP member detail hatası: {str(e)}"
