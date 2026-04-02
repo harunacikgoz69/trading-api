@@ -284,22 +284,7 @@ def clear_cache():
 
 @app.get("/test-mkk/{ticker}")
 def test_mkk(ticker: str):
-    import requests as req, base64, os
-    api_key = os.environ.get("MKK_API_KEY", "")
-    api_secret = os.environ.get("MKK_API_SECRET", "")
-    encoded = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
-    headers = {"Authorization": f"Basic {encoded}"}
-    BASE_DEV = "https://apigwdev.mkk.com.tr/api/vyk"
-
-    results = {}
-    # Gerçek KAP ID'lerini dev'de dene
-    for idx in ["1582379", "1573304", "1582000", "1575000", "1560000"]:
-        r = req.get(f"{BASE_DEV}/disclosureDetail/{idx}",
-                    headers=headers, params={"fileType": "data"},
-                    timeout=10, verify=False)
-        results[idx] = {"status": r.status_code, "body": r.text[:150]}
-
-    # Dev lastIndex'i de göster
-    r2 = req.get(f"{BASE_DEV}/lastDisclosureIndex", headers=headers, timeout=10, verify=False)
-    results["dev_lastIndex"] = r2.json() if r2.status_code == 200 else r2.status_code
-    return results
+    from tradingagents.dataflows.kap_client import get_kap_disclosures, get_kap_member_detail
+    disclosures = get_kap_disclosures(ticker)
+    member = get_kap_member_detail(ticker)
+    return {"disclosures": disclosures[:1000], "member": member[:300]}
