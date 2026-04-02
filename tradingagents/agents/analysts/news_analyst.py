@@ -23,13 +23,12 @@ def create_news_analyst(llm):
                 get_global_news,
                 get_tr_news,
                 get_tcmb_rates,
-                get_kap_disclosures,
             ]
             bist_note = (
                 " IMPORTANT: This is a BIST (Turkish stock market) stock. "
                 "You MUST use get_tr_news to fetch Turkish news from AA and BBC Turkce. "
                 "You MUST use get_tcmb_rates to get current USD/TRY, EUR/TRY exchange rates. "
-                "You MUST use get_kap_disclosures to fetch official KAP disclosures and announcements. "
+                
                 "Include Turkish macro context (inflation, interest rates, TRY volatility) in your report."
             )
         else:
