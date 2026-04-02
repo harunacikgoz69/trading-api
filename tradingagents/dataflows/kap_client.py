@@ -39,7 +39,7 @@ def get_kap_disclosures(member_code: str) -> str:
             return f"{member_code} için KAP üye ID bulunamadı."
 
         all_items = []
-        for start_idx in range(max(0, last_index - 2000), last_index + 1, 50):
+        for start_idx in range(max(0, last_index - 250), last_index + 1, 50):
             try:
                 r = requests.get(
                     f"{BASE_URL}/disclosures",
