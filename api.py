@@ -284,9 +284,21 @@ def clear_cache():
 
 @app.get("/test-mkk/{ticker}")
 def test_mkk(ticker: str):
-    from tradingagents.dataflows.kap_client import get_kap_disclosures, _get_token
-    token = _get_token()
-    if not token:
-        return {"error": "Token alinamadi", "mkk_api_key_set": bool(os.environ.get("MKK_API_KEY"))}
-    result = get_kap_disclosures(ticker)
-    return {"token_ok": True, "result": result[:500]}
+    import requests as req
+    import base64
+    api_key = os.environ.get("MKK_API_KEY", "")
+    api_secret = os.environ.get("MKK_API_SECRET", "")
+    BASE = "https://apigwdev.mkk.com.tr/api/vyk"
+    results = {}
+    for fmt_name, headers in [
+        ("basic_key_only", {"Authorization": f"Basic {base64.b64encode(api_key.encode()).decode()}"}),
+        ("basic_key_secret", {"Authorization": f"Basic {base64.b64encode(f'{api_key}:{api_secret}'.encode()).decode()}"}),
+        ("apikey_header", {"apikey": api_key, "apisecret": api_secret}),
+        ("bearer_key", {"Authorization": f"Bearer {api_key}"}),
+    ]:
+        try:
+            r = req.get(f"{BASE}/generateToken", headers=headers, timeout=10, verify=False)
+            results[fmt_name] = {"status": r.status_code, "body": r.text[:200]}
+        except Exception as e:
+            results[fmt_name] = {"error": str(e)}
+    return results
