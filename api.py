@@ -151,11 +151,36 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
         ta = TradingAgentsGraph(debug=False, config=config)
         state, decision = ta.propagate(ticker, req.date)
 
-        def get(key):
-            val = state.get(key)
-            if not val:
-                return ""
-            return str(val)
+        def get_sources():
+            sources = set()
+            messages = state.get("messages", [])
+            for msg in messages:
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        sources.add(tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", ""))
+                if hasattr(msg, "name") and msg.name:
+                    sources.add(msg.name)
+            source_labels = {
+                "get_stock_data": "Yahoo Finance (Hisse Verisi)",
+                "get_indicators": "Yahoo Finance (Teknik Göstergeler)",
+                "get_fundamentals": "Yahoo Finance (Temel Analiz)",
+                "get_balance_sheet": "Yahoo Finance (Bilanço)",
+                "get_cashflow": "Yahoo Finance (Nakit Akışı)",
+                "get_income_statement": "Yahoo Finance (Gelir Tablosu)",
+                "get_news": "Yahoo Finance (Haberler)",
+                "get_global_news": "Yahoo Finance (Global Haberler)",
+                "get_insider_transactions": "Yahoo Finance (İçeriden İşlemler)",
+                "get_tr_news": "AA Ekonomi + BBC Türkçe (Türkçe Haberler)",
+                "get_tcmb_rates": "TCMB (Döviz Kurları)",
+                "get_kap_disclosures": "KAP/MKK (Resmi Bildirimler)",
+            }
+            used = []
+            for s in sorted(sources):
+                if s:
+                    used.append(source_labels.get(s, s))
+            if not used:
+                used = ["Yahoo Finance (Genel)"]
+            return "## Kullanılan Veri Kaynakları\n\n" + "\n".join(f"- {u}" for u in used)
 
         debate = state.get("investment_debate_state") or {}
 
@@ -169,6 +194,7 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
             "trader":       get("trader_investment_plan"),
             "risk":         get("final_trade_decision"),
             "scenario":     get("scenario_report"),
+            "sources":      get_sources(),
         }
 
         final_decision = str(decision)
