@@ -24,38 +24,36 @@ def get_kap_disclosures(member_code: str) -> str:
     if not headers:
         return "KAP API credentials eksik."
     try:
-        r1 = _get(f"{BASE_URL}/lastDisclosureIndex", headers=headers, timeout=20)
+        r1 = requests.get(f"{BASE_URL}/lastDisclosureIndex", headers=headers, timeout=5, verify=False)
         if r1.status_code != 200:
-            return f"KAP lastDisclosureIndex hatası: {r1.status_code}"
+            return f"KAP erişim hatası: {r1.status_code}"
         last_index = int(r1.json().get("lastDisclosureIndex", 0))
 
-        r_m = _get(f"{BASE_URL}/members", headers=headers, timeout=20)
+        r_m = requests.get(f"{BASE_URL}/members", headers=headers, timeout=5, verify=False)
         members = r_m.json() if r_m.status_code == 200 else []
         if isinstance(members, dict):
             members = members.get("data", [])
-        member = next(
-            (m for m in members if m.get("stockCode", "").upper() == member_code.upper()),
-            None
-        )
+        member = next((m for m in members if m.get("stockCode", "").upper() == member_code.upper()), None)
         company_id = str(member.get("id")) if member else None
         if not company_id:
             return f"{member_code} için KAP üye ID bulunamadı."
 
         all_items = []
-        step = 50
-        search_from = max(0, last_index - 5000)
-
-        for start_idx in range(search_from, last_index + 1, step):
-            r = _get(
-                f"{BASE_URL}/disclosures",
-                headers=headers,
-                params={"disclosureIndex": str(start_idx), "companyId": company_id},
-                timeout=15,
-            )
-            if r.status_code == 200:
-                items = r.json()
-                if isinstance(items, list) and items:
-                    all_items.extend(items)
+        for start_idx in range(max(0, last_index - 2000), last_index + 1, 50):
+            try:
+                r = requests.get(
+                    f"{BASE_URL}/disclosures",
+                    headers=headers,
+                    params={"disclosureIndex": str(start_idx), "companyId": company_id},
+                    timeout=5,
+                    verify=False,
+                )
+                if r.status_code == 200:
+                    items = r.json()
+                    if isinstance(items, list) and items:
+                        all_items.extend(items)
+            except:
+                continue
 
         all_items.sort(key=lambda x: int(x.get("disclosureIndex", 0)), reverse=True)
         seen = set()
@@ -69,17 +67,18 @@ def get_kap_disclosures(member_code: str) -> str:
         if not unique_items:
             return f"{member_code} için KAP bildirimi bulunamadı."
 
-        output = [f"## KAP Bildirimleri — {member_code} (Son {len(unique_items)} bildirim)\n"]
-        for item in unique_items[:10]:
+        output = [f"## KAP Bildirimleri — {member_code}\n"]
+        for item in unique_items[:5]:
             category = item.get("disclosureType") or ""
             disc_class = item.get("disclosureClass") or ""
             disc_index = item.get("disclosureIndex") or ""
             try:
-                r_d = _get(
+                r_d = requests.get(
                     f"{BASE_URL}/disclosureDetail/{disc_index}",
                     headers=headers,
                     params={"fileType": "data"},
-                    timeout=15,
+                    timeout=5,
+                    verify=False,
                 )
                 if r_d.status_code == 200:
                     d = r_d.json()
@@ -90,9 +89,7 @@ def get_kap_disclosures(member_code: str) -> str:
                     summary_text = summary.get("tr") or summary.get("en") or ""
                     output.append(f"**{date[:10]} — {disc_class}/{category}**: {title}")
                     if summary_text and summary_text != title:
-                        output.append(f"  {summary_text[:200]}")
-                else:
-                    output.append(f"**{disc_class}/{category}**: ID {disc_index}")
+                        output.append(f"  {summary_text[:150]}")
             except:
                 output.append(f"**{disc_class}/{category}**: ID {disc_index}")
 
