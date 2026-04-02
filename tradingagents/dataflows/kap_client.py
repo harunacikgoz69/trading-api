@@ -42,7 +42,7 @@ def get_kap_disclosures(member_code: str) -> str:
         # Geriye doğru tarayarak en güncel bildirimleri bul
         all_items = []
         step = 50
-        search_from = max(0, last_index - 500)
+        search_from = max(0, last_index - 2000)
 
         for start_idx in range(search_from, last_index + 1, step):
             r = requests.get(
