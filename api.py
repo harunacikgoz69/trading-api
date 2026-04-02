@@ -291,6 +291,7 @@ def test_mkk(ticker: str):
 
 class PortfolioOptimizeRequest(BaseModel):
     symbols: list
+    analyses: list = []
     lang: str = "tr"
 
 @app.post("/optimize-portfolio")
@@ -304,43 +305,53 @@ def optimize_portfolio(req: PortfolioOptimizeRequest):
             with jobs_lock:
                 jobs[job_id]["status"] = "running"
 
-            # Supabase'den analiz geçmişini çek
-            analyses = []
-            for symbol in req.symbols:
-                # Her sembol için son analizi al
-                analyses.append({
-                    "symbol": symbol,
-                    "requested": True
-                })
 
             # Claude ile portföy optimizasyonu
             client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-            prompt = f"""Sen bir portföy optimizasyon uzmanısın. Aşağıdaki hisseler için optimal portföy ağırlıklarını belirle.
+            analysis_lines = []
+            for a in req.analyses:
+                decision = a.get("decision", "")
+                symbol = a.get("symbol", "")
+                report = a.get("report", "")[:500]
+                if "buy" in decision.lower() or "al" in decision.lower():
+                    karar = "BUY ✅"
+                elif "sell" in decision.lower() or "sat" in decision.lower():
+                    karar = "SELL ❌"
+                else:
+                    karar = "HOLD ⚠️"
+                analysis_lines.append(f"- {symbol}: {karar}\n  Rapor özeti: {report[:200]}")
 
-Hisseler: {', '.join(req.symbols)}
+            analysis_text = "\n".join(analysis_lines) if analysis_lines else "Analiz verisi yok, sadece semboller: " + ", ".join(req.symbols)
 
-Kurallar:
-- Toplam ağırlık %100 olmalı
-- Hiçbir hisse %40'tan fazla ağırlık alamaz
-- En az 2 farklı sektör olmalı
-- Her hisse için beklenen getiri pozitif olmalı
+            prompt = f"""Sen bir portföy optimizasyon uzmanısın. Aşağıdaki GERÇEK analiz sonuçlarına KESINLIKLE uy.
+
+ANALIZ SONUÇLARI (bu verileri değiştirme, kullan):
+{analysis_text}
+
+ZORUNLU KURALLAR:
+1. BUY kararı → %15-35 ağırlık ver
+2. HOLD kararı → %5-15 ağırlık ver  
+3. SELL kararı → %0-5 ağırlık ver (portföye dahil etme)
+4. Toplam = %100
+5. Hiçbir hisse %40 üstünde olamaz
+6. En az 2 farklı sektör olmalı
 
 Şu formatı kullan:
 
 ## Portföy Önerisi
 
-| Hisse | Ağırlık | Sektör | Gerekçe |
-|-------|---------|--------|---------|
-| XXXX | %XX | Sektör | Kısa gerekçe |
+| Hisse | Ağırlık | Sektör | Analiz Kararı | Gerekçe |
+|-------|---------|--------|---------------|---------|
+| XXXX | %XX | Sektör | BUY/HOLD/SELL | Kısa gerekçe |
 
 ## Özet
-[2-3 cümle portföy stratejisi açıklaması]
+[Analiz kararlarına dayalı 2-3 cümle]
 
 ## Risk Değerlendirmesi
 [Risk faktörleri]
 
-Türkçe yanıt ver."""
+Türkçe yanıt ver. Analiz kararlarını KESINLIKLE yansıt."""
 
             message = client.messages.create(
                 model="claude-haiku-4-5-20251001",
