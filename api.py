@@ -124,6 +124,8 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
         config["quick_think_llm"] = models["quick"]
         config["max_debate_rounds"] = req.depth
         config["online_tools"] = True
+        if req.lang == "tr":
+            config["output_language"] = "Turkish"
 
         if req.provider == "openai":
             config["llm_provider"] = "openai"
@@ -198,11 +200,6 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
         }
 
         final_decision = str(decision)
-
-        if req.lang == "tr":
-            for key in reports:
-                reports[key] = translate_to_turkish(reports[key])
-            final_decision = translate_to_turkish(final_decision)
 
         with jobs_lock:
             jobs[job_id]["status"] = "done"
