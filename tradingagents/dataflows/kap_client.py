@@ -2,7 +2,7 @@ import requests
 import os
 import base64
 
-BASE_URL = "https://apigw.mkk.com.tr/api/vyk"
+BASE_URL = "https://apigwdev.mkk.com.tr/api/vyk"
 BASE_URL_DEV = "https://apigwdev.mkk.com.tr/api/vyk"
 
 
@@ -16,15 +16,7 @@ def _get_headers() -> dict:
 
 
 def _get(url, headers, params=None, timeout=20):
-    """Try prod first, fallback to dev."""
-    try:
-        r = requests.get(url, headers=headers, params=params, timeout=timeout, verify=False)
-        if r.status_code in [200, 400, 404]:
-            return r
-    except Exception:
-        pass
-    dev_url = url.replace("apigw.mkk.com.tr", "apigwdev.mkk.com.tr")
-    return requests.get(dev_url, headers=headers, params=params, timeout=timeout, verify=False)
+    return requests.get(url, headers=headers, params=params, timeout=timeout, verify=False)
 
 
 def get_kap_disclosures(member_code: str) -> str:
