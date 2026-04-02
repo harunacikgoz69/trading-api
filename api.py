@@ -284,7 +284,26 @@ def clear_cache():
 
 @app.get("/test-mkk/{ticker}")
 def test_mkk(ticker: str):
-    from tradingagents.dataflows.kap_client import get_kap_disclosures, get_kap_member_detail
-    disclosures = get_kap_disclosures(ticker)
-    member = get_kap_member_detail(ticker)
-    return {"disclosures": disclosures[:1000], "member": member[:300]}
+    import requests as req
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://www.kap.org.tr/",
+    }
+    # KAP'ın dahili API'si
+    urls = [
+        "https://www.kap.org.tr/tr/api/disclosureQuery?memberCode=THYAO&year=2026",
+        "https://www.kap.org.tr/tr/api/memberDisclosureQuery?memberCode=THYAO",
+        "https://www.kap.org.tr/api/disclosures?memberCode=THYAO",
+    ]
+    results = {}
+    for url in urls:
+        try:
+            r = req.get(url, headers=headers, timeout=10, verify=False)
+            results[url.split("kap.org.tr")[1][:50]] = {
+                "status": r.status_code,
+                "body": r.text[:200]
+            }
+        except Exception as e:
+            results[url[:50]] = {"error": str(e)}
+    return results
