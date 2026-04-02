@@ -20,51 +20,60 @@ def get_kap_disclosures(member_code: str) -> str:
     if not headers:
         return "KAP API credentials eksik."
     try:
-        BASE = BASE_URL
         # Son index al
-        r1 = requests.get(f"{BASE}/lastDisclosureIndex", headers=headers, timeout=10, verify=False)
+        r1 = requests.get(f"{BASE_URL}/lastDisclosureIndex", headers=headers, timeout=10, verify=False)
         if r1.status_code != 200:
             return f"KAP lastDisclosureIndex hatası: {r1.status_code}"
-        last_index = int(r1.json().get("lastDisclosureIndex", 0))
+        last_index = r1.json().get("lastDisclosureIndex", "0")
+
+        # Member ID'yi al
+        r_m = requests.get(f"{BASE_URL}/members", headers=headers, timeout=15, verify=False)
+        members = r_m.json() if r_m.status_code == 200 else []
+        if isinstance(members, dict):
+            members = members.get("data", [])
+        member = next(
+            (m for m in members if
+             m.get("stockCode", "").upper() == member_code.upper()),
+            None
+        )
+        company_id = str(member.get("id")) if member else None
+
+        # companyId filtresiyle disclosures listesi çek
+        params = {"disclosureIndex": last_index}
+        if company_id:
+            params["companyId"] = company_id
+
+        r2 = requests.get(
+            f"{BASE_URL}/disclosures",
+            headers=headers,
+            params=params,
+            timeout=15,
+            verify=False,
+        )
+
+        if r2.status_code != 200:
+            return f"KAP disclosures hatası: HTTP {r2.status_code} — {r2.text[:200]}"
+
+        items = r2.json()
+        if isinstance(items, dict):
+            items = [items]
+        if not isinstance(items, list):
+            items = []
+
+        # companyId ile filtrele
+        if company_id:
+            items = [i for i in items if str(i.get("companyId", "")) == company_id]
+
+        if not items:
+            return f"{member_code} için KAP bildirimi bulunamadı (companyId: {company_id})."
 
         output = [f"## KAP Bildirimleri — {member_code}\n"]
-        found = 0
-        for i in range(last_index, last_index - 500, -1):
-            if found >= 10:
-                break
-            try:
-                r = requests.get(
-                    f"{BASE}/disclosureDetail/{i}",
-                    headers=headers,
-                    params={"fileType": "data"},
-                    timeout=8,
-                    verify=False,
-                )
-                if r.status_code != 200:
-                    continue
-                d = r.json()
-
-                # Şirkete ait mi? senderExchCodes veya senderId ile kontrol
-                exch_codes = d.get("senderExchCodes") or d.get("behalfSenderExchCodes") or []
-                sender_title = d.get("senderTitle") or ""
-
-                if member_code.upper() not in [c.upper() for c in exch_codes]:
-                    if member_code.upper() not in sender_title.upper():
-                        continue
-
-                subject = d.get("subject") or {}
-                title = subject.get("tr") or subject.get("en") or ""
-                date = d.get("time") or d.get("publishDate") or ""
-                category = d.get("disclosureType") or ""
-                disclosure_index = d.get("disclosureIndex") or i
-
-                output.append(f"**{date[:10]}** — {category}: {title} (ID: {disclosure_index})")
-                found += 1
-            except:
-                continue
-
-        if found == 0:
-            return f"{member_code} için son 500 bildirimde kayıt bulunamadı."
+        for item in items[:15]:
+            title = item.get("title") or ""
+            category = item.get("disclosureType") or ""
+            disc_class = item.get("disclosureClass") or ""
+            disc_index = item.get("disclosureIndex") or ""
+            output.append(f"**{disc_class}/{category}**: {title} (ID: {disc_index})")
 
         return "\n".join(output)
     except Exception as e:
