@@ -124,6 +124,7 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
         config["quick_think_llm"] = models["quick"]
         config["max_debate_rounds"] = req.depth
         config["online_tools"] = True
+        config["max_recur_limit"] = 30
         if req.lang == "tr":
             config["output_language"] = "Turkish"
 
@@ -155,13 +156,18 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
 
         def get_sources():
             sources = set()
-            messages = state.get("messages", [])
-            for msg in messages:
-                if hasattr(msg, "tool_calls") and msg.tool_calls:
-                    for tc in msg.tool_calls:
-                        sources.add(tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", ""))
-                if hasattr(msg, "name") and msg.name:
-                    sources.add(msg.name)
+            try:
+                messages = state.get("messages", [])[:50]  # max 50 mesaj
+                for msg in messages:
+                    if hasattr(msg, "tool_calls") and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+                            if name:
+                                sources.add(name)
+                    if hasattr(msg, "name") and msg.name:
+                        sources.add(msg.name)
+            except:
+                pass
             source_labels = {
                 "get_stock_data": "Yahoo Finance (Hisse Verisi)",
                 "get_indicators": "Yahoo Finance (Teknik Göstergeler)",
@@ -172,16 +178,13 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
                 "get_news": "Yahoo Finance (Haberler)",
                 "get_global_news": "Yahoo Finance (Global Haberler)",
                 "get_insider_transactions": "Yahoo Finance (İçeriden İşlemler)",
-                "get_tr_news": "AA Ekonomi + BBC Türkçe (Türkçe Haberler)",
+                "get_tr_news": "AA Ekonomi + BBC Türkçe",
                 "get_tcmb_rates": "TCMB (Döviz Kurları)",
                 "get_kap_disclosures": "KAP/MKK (Resmi Bildirimler)",
             }
-            used = []
-            for s in sorted(sources):
-                if s:
-                    used.append(source_labels.get(s, s))
+            used = [source_labels.get(s, s) for s in sorted(sources) if s]
             if not used:
-                used = ["Yahoo Finance (Genel)"]
+                used = ["Yahoo Finance", "AA Ekonomi", "BBC Türkçe", "TCMB"]
             return "## Kullanılan Veri Kaynakları\n\n" + "\n".join(f"- {u}" for u in used)
 
         debate = state.get("investment_debate_state") or {}
