@@ -34,12 +34,12 @@ Key points to focus on:
 
 Resources available:
 
-Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
-Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
-Conversation history of the debate: {history}
-Last bull argument: {current_response}
+Market research report: {market_research_report[:800]}
+Social media sentiment report: {sentiment_report[:400]}
+Latest world affairs news: {news_report[:400]}
+Company fundamentals report: {fundamentals_report[:800]}
+Conversation history of the debate: {history[-1000:]}
+Last bull argument: {current_response[:500]}
 Reflections from similar situations and lessons learned: {past_memory_str}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. You must also address reflections and learn from lessons and mistakes you made in the past.
 """

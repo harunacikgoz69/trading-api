@@ -32,12 +32,12 @@ Key points to focus on:
 - Engagement: Present your argument in a conversational style, engaging directly with the bear analyst's points and debating effectively rather than just listing data.
 
 Resources available:
-Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
-Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
-Conversation history of the debate: {history}
-Last bear argument: {current_response}
+Market research report: {market_research_report[:800]}
+Social media sentiment report: {sentiment_report[:400]}
+Latest world affairs news: {news_report[:400]}
+Company fundamentals report: {fundamentals_report[:800]}
+Conversation history of the debate: {history[-1000:]}
+Last bull argument: {current_response[:500]}
 Reflections from similar situations and lessons learned: {past_memory_str}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position. You must also address reflections and learn from lessons and mistakes you made in the past.
 """
