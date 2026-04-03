@@ -34,8 +34,7 @@ def create_fundamentals_analyst(llm):
 
             + (f" {source_notes}" if source_notes else "")
 
-            + get_language_instruction(),
-
+            + get_language_instruction()
         )
 
         prompt = ChatPromptTemplate.from_messages(

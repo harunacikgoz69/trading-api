@@ -153,6 +153,11 @@ def run_analysis_job(job_id: str, req: AnalyzeRequest):
 
         ta = TradingAgentsGraph(debug=False, config=config)
         state, decision = ta.propagate(ticker, req.date)
+        def get(key):
+            val = state.get(key)
+            if not val:
+                return ""
+            return str(val)
 
         def get_sources():
             sources = set()
