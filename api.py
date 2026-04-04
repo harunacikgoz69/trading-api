@@ -419,8 +419,9 @@ def get_chart_data(symbol: str, period: str = "1mo"):
         
         # Period mapping
         period_map = {
-            "7d": ("7d", "1h"),
+            "7d": ("7d", "1d"),
             "1mo": ("1mo", "1d"),
+            "3mo": ("3mo", "1d"),
             "1y": ("1y", "1wk"),
         }
         yf_period, interval = period_map.get(period, ("1mo", "1d"))
