@@ -405,3 +405,162 @@ Türkçe yanıt ver. Analiz kararlarını KESINLIKLE yansıt."""
     thread.daemon = True
     thread.start()
     return {"job_id": job_id}
+
+@app.get("/chart-data/{symbol}")
+def get_chart_data(symbol: str, period: str = "1mo"):
+    try:
+        import yfinance as yf
+        import pandas as pd
+        
+        # BIST sembolü düzelt
+        yf_symbol = symbol
+        if not symbol.endswith(".IS") and symbol in BIST_TICKERS:
+            yf_symbol = symbol + ".IS"
+        
+        # Period mapping
+        period_map = {
+            "7d": ("7d", "1h"),
+            "1mo": ("1mo", "1d"),
+            "1y": ("1y", "1wk"),
+        }
+        yf_period, interval = period_map.get(period, ("1mo", "1d"))
+        
+        ticker = yf.Ticker(yf_symbol)
+        hist = ticker.history(period=yf_period, interval=interval)
+        
+        if hist.empty:
+            return {"error": "Veri bulunamadı", "symbol": symbol}
+        
+        hist = hist.reset_index()
+        
+        # Tarih kolonunu string'e çevir
+        date_col = "Datetime" if "Datetime" in hist.columns else "Date"
+        hist[date_col] = hist[date_col].astype(str)
+        
+        prices = []
+        for _, row in hist.iterrows():
+            prices.append({
+                "date": str(row[date_col])[:16],
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]),
+            })
+        
+        # Teknik göstergeler hesapla
+        closes = [p["close"] for p in prices]
+        
+        def sma(data, window):
+            result = []
+            for i in range(len(data)):
+                if i < window - 1:
+                    result.append(None)
+                else:
+                    result.append(round(sum(data[i-window+1:i+1]) / window, 2))
+            return result
+        
+        def ema(data, window):
+            result = []
+            k = 2 / (window + 1)
+            for i in range(len(data)):
+                if i == 0:
+                    result.append(data[0])
+                else:
+                    result.append(round(data[i] * k + result[-1] * (1 - k), 2))
+            return result
+        
+        def rsi(data, window=14):
+            result = [None] * window
+            for i in range(window, len(data)):
+                gains = []
+                losses = []
+                for j in range(i - window, i):
+                    diff = data[j+1] - data[j]
+                    if diff >= 0:
+                        gains.append(diff)
+                    else:
+                        losses.append(abs(diff))
+                avg_gain = sum(gains) / window if gains else 0
+                avg_loss = sum(losses) / window if losses else 0
+                if avg_loss == 0:
+                    result.append(100)
+                else:
+                    rs = avg_gain / avg_loss
+                    result.append(round(100 - (100 / (1 + rs)), 2))
+            return result
+        
+        def bollinger(data, window=20, num_std=2):
+            upper, lower, middle = [], [], []
+            for i in range(len(data)):
+                if i < window - 1:
+                    upper.append(None)
+                    lower.append(None)
+                    middle.append(None)
+                else:
+                    slice_ = data[i-window+1:i+1]
+                    avg = sum(slice_) / window
+                    std = (sum((x - avg) ** 2 for x in slice_) / window) ** 0.5
+                    middle.append(round(avg, 2))
+                    upper.append(round(avg + num_std * std, 2))
+                    lower.append(round(avg - num_std * std, 2))
+            return upper, middle, lower
+        
+        def macd(data, fast=12, slow=26, signal=9):
+            ema_fast = ema(data, fast)
+            ema_slow = ema(data, slow)
+            macd_line = [round(f - s, 2) if f and s else None 
+                        for f, s in zip(ema_fast, ema_slow)]
+            # Signal line (EMA of MACD)
+            macd_values = [m for m in macd_line if m is not None]
+            signal_raw = ema(macd_values, signal)
+            # Pad with None
+            pad = len(macd_line) - len(signal_raw)
+            signal_line = [None] * pad + signal_raw
+            histogram = [round(m - s, 2) if m is not None and s is not None else None
+                        for m, s in zip(macd_line, signal_line)]
+            return macd_line, signal_line, histogram
+        
+        sma20 = sma(closes, 20)
+        sma50 = sma(closes, 50)
+        ema10 = ema(closes, 10)
+        rsi14 = rsi(closes, 14)
+        bb_upper, bb_middle, bb_lower = bollinger(closes, 20)
+        macd_line, signal_line, histogram = macd(closes)
+        
+        # Her price point'e indikatörleri ekle
+        for i, p in enumerate(prices):
+            p["sma20"] = sma20[i]
+            p["sma50"] = sma50[i]
+            p["ema10"] = ema10[i]
+            p["rsi"] = rsi14[i]
+            p["bb_upper"] = bb_upper[i]
+            p["bb_middle"] = bb_middle[i]
+            p["bb_lower"] = bb_lower[i]
+            p["macd"] = macd_line[i]
+            p["macd_signal"] = signal_line[i]
+            p["macd_hist"] = histogram[i]
+        
+        # Özet istatistikler
+        current = closes[-1] if closes else 0
+        high_52w = max(closes) if closes else 0
+        low_52w = min(closes) if closes else 0
+        
+        return {
+            "symbol": symbol,
+            "period": period,
+            "prices": prices,
+            "summary": {
+                "current": round(current, 2),
+                "high": round(high_52w, 2),
+                "low": round(low_52w, 2),
+                "rsi": rsi14[-1] if rsi14 else None,
+                "macd": macd_line[-1] if macd_line else None,
+                "sma20": sma20[-1] if sma20 else None,
+                "sma50": sma50[-1] if sma50 else None,
+            }
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
