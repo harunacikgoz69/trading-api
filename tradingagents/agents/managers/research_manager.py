@@ -1,6 +1,3 @@
-import time
-import json
-
 from tradingagents.agents.utils.agent_utils import build_instrument_context
 
 
@@ -12,7 +9,6 @@ def create_research_manager(llm, memory):
         sentiment_report = state["sentiment_report"]
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
-
         investment_debate_state = state["investment_debate_state"]
 
         curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
@@ -22,25 +18,31 @@ def create_research_manager(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""As the portfolio manager and debate facilitator, your role is to critically evaluate this round of debate and make a definitive decision: align with the bear analyst, the bull analyst, or choose Hold only if it is strongly justified based on the arguments presented.
-
-Summarize the key points from both sides concisely, focusing on the most compelling evidence or reasoning. Your recommendation—Buy, Sell, or Hold—must be clear and actionable. Avoid defaulting to Hold simply because both sides have valid points; commit to a stance grounded in the debate's strongest arguments.
-
-Additionally, develop a detailed investment plan for the trader. This should include:
-
-Your Recommendation: A decisive stance supported by the most convincing arguments.
-Rationale: An explanation of why these arguments lead to your conclusion.
-Strategic Actions: Concrete steps for implementing the recommendation.
-Take into account your past mistakes on similar situations. Use these insights to refine your decision-making and ensure you are learning and improving. Present your analysis conversationally, as if speaking naturally, without special formatting. 
-
-Here are your past reflections on mistakes:
-\"{past_memory_str}\"
+        prompt = f"""You are the Research Manager adjudicating the Bull vs Bear debate. Your job is to determine which side presented STRONGER EVIDENCE — not which side argued more forcefully.
 
 {instrument_context}
 
-Here is the debate:
-Debate History:
+EVIDENCE QUALITY RULES (apply strictly):
+1. Arguments backed by SPECIFIC NUMBERS (revenue growth %, debt ratios, price targets with methodology) outweigh generic claims
+2. Generic risks like "geopolitical uncertainty" or "competition" without quantified impact do NOT override strong data-backed arguments
+3. If bull presents specific financial data and bear presents only general risks → lean BUY
+4. If bear presents specific deteriorating metrics and bull presents only narrative → lean SELL
+5. HOLD is valid ONLY when both sides present equally strong specific evidence pointing in opposite directions
+
+PAST MISTAKES TO AVOID:
+{past_memory_str}
+
+YOUR OUTPUT MUST INCLUDE:
+1. WINNING ARGUMENT: Which side (Bull/Bear) had stronger evidence and why (cite specific data points)
+2. LOSING ARGUMENT: What the other side got wrong or lacked
+3. INVESTMENT PLAN FOR TRADER: Concrete recommendation with specific price levels, time horizon, and key catalysts to watch
+4. PRELIMINARY STANCE: Buy / Hold / Sell
+
+Be direct. Do not hedge excessively. The trader needs a clear, actionable plan.
+
+DEBATE HISTORY:
 {history}"""
+
         response = llm.invoke(prompt)
 
         new_investment_debate_state = {

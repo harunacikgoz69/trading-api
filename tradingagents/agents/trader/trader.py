@@ -1,7 +1,4 @@
 import functools
-import time
-import json
-
 from tradingagents.agents.utils.agent_utils import build_instrument_context
 
 
@@ -25,17 +22,68 @@ def create_trader(llm, memory):
         else:
             past_memory_str = "No past memories found."
 
-        context = {
-            "role": "user",
-            "content": f"Based on a comprehensive analysis by a team of analysts, here is an investment plan tailored for {company_name}. {instrument_context} This plan incorporates insights from current technical market trends, macroeconomic indicators, and social media sentiment. Use this plan as a foundation for evaluating your next trading decision.\n\nProposed Investment Plan: {investment_plan[:1000]}\n\nLeverage these insights to make an informed and strategic decision.",
-        }
-
         messages = [
             {
                 "role": "system",
-                "content": f"""You are a trading agent analyzing market data to make investment decisions. Based on your analysis, provide a specific recommendation to buy, sell, or hold. End with a firm decision and always conclude your response with 'FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**' to confirm your recommendation. Apply lessons from past decisions to strengthen your analysis. Here are reflections from similar situations you traded in and the lessons learned: {past_memory_str}""",
+                "content": f"""You are a disciplined trading agent. You must evaluate the investment plan using a structured 4-factor decision framework. Do NOT simply follow the loudest argument — weigh each factor independently with specific data points, then synthesize.
+
+DECISION FRAMEWORK — evaluate each factor separately:
+
+1. FUNDAMENTALS (weight: 35%)
+   - Revenue growth trend (positive/negative/flat)
+   - Profitability: net margin, EBITDA margin
+   - Balance sheet: debt levels, cash flow
+   - Valuation: is current price justified vs. forward earnings?
+   Score each: STRONG POSITIVE / NEUTRAL / STRONG NEGATIVE
+
+2. TECHNICAL MOMENTUM (weight: 25%)
+   - Trend direction (above/below key MAs)
+   - Momentum indicators (RSI, MACD)
+   - Support/resistance levels
+   Score each: STRONG POSITIVE / NEUTRAL / STRONG NEGATIVE
+
+3. MACRO & NEWS (weight: 25%)
+   - Sector tailwinds or headwinds
+   - Currency/interest rate exposure
+   - Geopolitical or regulatory risks
+   Score each: STRONG POSITIVE / NEUTRAL / STRONG NEGATIVE
+
+4. SENTIMENT (weight: 15%)
+   - Market sentiment trend
+   - Insider activity or institutional signals
+   Score each: STRONG POSITIVE / NEUTRAL / STRONG NEGATIVE
+
+SYNTHESIS RULES (apply strictly):
+- 3+ factors STRONG POSITIVE → BUY
+- 3+ factors STRONG NEGATIVE → SELL
+- 2 STRONG POSITIVE, 2 STRONG NEGATIVE → HOLD (explain the key swing factor)
+- Mixed signals: identify the SINGLE most important factor for this specific company/context and weight it higher
+- NEVER default to HOLD just because both sides argued well — commit to the dominant signal
+
+IMPORTANT: A bear argument is only valid if it contains specific numbers or data. Generic risks (geopolitics, competition) without quantified impact do NOT override strong positive fundamentals.
+
+Past lessons from similar situations: {past_memory_str}""",
             },
-            context,
+            {
+                "role": "user",
+                "content": f"""Apply the 4-factor decision framework to make a trading decision for {company_name}.
+
+{instrument_context}
+
+INVESTMENT PLAN FROM RESEARCH TEAM:
+{investment_plan[:1000]}
+
+SUPPORTING DATA:
+- Fundamentals: {fundamentals_report[:600]}
+- Technical: {market_research_report[:400]}
+- News/Macro: {news_report[:300]}
+- Sentiment: {sentiment_report[:200]}
+
+Structure your response as:
+1. FACTOR SCORES (one paragraph each, with specific data)
+2. SYNTHESIS (which factors dominate and why)
+3. FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**""",
+            },
         ]
 
         result = llm.invoke(messages)

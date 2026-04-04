@@ -3,9 +3,7 @@ from tradingagents.agents.utils.agent_utils import build_instrument_context, get
 
 def create_portfolio_manager(llm, memory):
     def portfolio_manager_node(state) -> dict:
-
         instrument_context = build_instrument_context(state["company_of_interest"])
-
         history = state["risk_debate_state"]["history"]
         risk_debate_state = state["risk_debate_state"]
         market_research_report = state["market_report"]
@@ -21,36 +19,38 @@ def create_portfolio_manager(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
+        prompt = f"""You are the Portfolio Manager making the FINAL trading decision. You have the trader's plan and the risk analysts' debate. Your decision must be data-driven and consistent.
 
 {instrument_context}
 
----
+CONSISTENCY RULE: Your final decision must align with the weight of evidence, not with the most recent or loudest argument. If the trader recommended BUY based on strong fundamentals, you need SPECIFIC deteriorating data to override it — not just general risk concerns.
 
-**Rating Scale** (use exactly one):
-- **Buy**: Strong conviction to enter or add to position
-- **Overweight**: Favorable outlook, gradually increase exposure
-- **Hold**: Maintain current position, no action needed
-- **Underweight**: Reduce exposure, take partial profits
-- **Sell**: Exit position or avoid entry
+FINAL RATING SCALE (choose exactly one):
+- **BUY**: Enter or add to position — fundamentals + at least one other factor positive
+- **HOLD**: Maintain position — mixed signals with no clear dominant direction
+- **SELL**: Exit or avoid — fundamentals deteriorating OR technical breakdown + macro headwinds confirmed
 
-**Context:**
-- Trader's proposed plan: **{trader_plan}**
-- Lessons from past decisions: **{past_memory_str}**
+OVERRIDE CONDITIONS:
+- You may override trader's BUY to HOLD only if risk analysts identified a specific near-term catalyst for downside (earnings miss risk, regulatory action, etc.)
+- You may override trader's HOLD to SELL only if risk debate reveals structural problems not captured in fundamentals report
+- You may NOT override based on generic "uncertainty" — every override needs a specific, quantified reason
 
-**Required Output Structure:**
-1. **Rating**: State one of Buy / Overweight / Hold / Underweight / Sell.
-2. **Executive Summary**: A concise action plan covering entry strategy, position sizing, key risk levels, and time horizon.
-3. **Investment Thesis**: Detailed reasoning anchored in the analysts' debate and past reflections.
+PAST LESSONS:
+{past_memory_str}
 
----
+TRADER'S PLAN:
+{trader_plan[:500]}
 
-**Risk Analysts Debate History:**
+RISK ANALYSTS DEBATE:
 {history}
 
----
+YOUR OUTPUT:
+1. FINAL RATING: Buy / Hold / Sell
+2. OVERRIDE DECISION: Did you change the trader's recommendation? If yes, state the specific reason with data.
+3. EXECUTIVE SUMMARY: Entry/exit strategy, position sizing, stop loss, time horizon
+4. KEY RISKS TO MONITOR: Maximum 3, each with a specific trigger level
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}"""
+Be decisive. Vague conclusions are not acceptable.{get_language_instruction()}"""
 
         response = llm.invoke(prompt)
 
